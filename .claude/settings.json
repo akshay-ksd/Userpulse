@@ -1,0 +1,16 @@
+{
+  "skills": {
+    "planner": {
+      "description": "Plan the next user story: analyze requirements, inspect codebase, and create a detailed task file in harness/tasks/. Use when you need to plan before building.",
+      "path": ".claude/skills/planner.md"
+    },
+    "builder": {
+      "description": "Build/implement a planned user story from its task file. Writes code, runs tests, updates progress. Use after planning is done.",
+      "path": ".claude/skills/builder.md"
+    },
+    "dispatch": {
+      "description": "Pick the next unstarted user story, plan it, build it, and update progress. Use 'dispatch next' to advance the project by one story.",
+      "path": ".claude/skills/dispatch.md"
+    }
+  }
+}

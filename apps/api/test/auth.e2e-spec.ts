@@ -186,4 +186,44 @@ describe('AuthController (e2e)', () => {
         .expect(400);
     });
   });
+
+  describe('sign-out', () => {
+    const jane = { email: 'jane@example.com', password: 'password1' };
+
+    beforeEach(async () => {
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ ...jane, name: 'Jane' })
+        .expect(201);
+    });
+
+    it('signs out and invalidates the session', async () => {
+      const signInRes = await request(app.getHttpServer())
+        .post('/auth/sign-in')
+        .send(jane)
+        .expect(200);
+
+      const cookie = (
+        signInRes.headers['set-cookie'] as unknown as string[]
+      )[0].split(';')[0];
+
+      expect(await prisma.session.count()).toBe(1);
+
+      await request(app.getHttpServer())
+        .post('/auth/sign-out')
+        .set('Cookie', cookie)
+        .expect(204);
+
+      expect(await prisma.session.count()).toBe(0);
+
+      await request(app.getHttpServer())
+        .get('/me')
+        .set('Cookie', cookie)
+        .expect(401);
+    });
+
+    it('rejects sign-out without a session', async () => {
+      await request(app.getHttpServer()).post('/auth/sign-out').expect(401);
+    });
+  });
 });

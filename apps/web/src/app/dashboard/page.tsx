@@ -16,6 +16,7 @@ type State = { status: 'loading' } | { status: 'error' } | { status: 'ready'; us
 export default function DashboardPage() {
   const router = useRouter();
   const [state, setState] = useState<State>({ status: 'loading' });
+  const [signingOut, setSigningOut] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -50,6 +51,19 @@ export default function DashboardPage() {
     };
   }, [router]);
 
+  async function handleSignOut() {
+    setSigningOut(true);
+    try {
+      await fetch(`${API_URL}/auth/sign-out`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch {
+      // Even on network error, redirect to login — the user wants to leave.
+    }
+    router.replace('/login');
+  }
+
   if (state.status === 'loading') {
     return (
       <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
@@ -78,9 +92,19 @@ export default function DashboardPage() {
   return (
     <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       <main className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-white p-10 shadow-sm dark:bg-zinc-950">
-        <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-          Welcome, {displayName}
-        </h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
+            Welcome, {displayName}
+          </h1>
+          <button
+            type="button"
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="rounded-lg border border-black/[.08] px-3 py-1.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.145] dark:text-zinc-300 dark:hover:bg-zinc-800"
+          >
+            {signingOut ? 'Signing out…' : 'Sign out'}
+          </button>
+        </div>
         <p className="text-zinc-600 dark:text-zinc-400">
           You are signed in. Your workspace is on the way — organization setup arrives next.
         </p>

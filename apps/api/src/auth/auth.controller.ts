@@ -11,7 +11,6 @@ import type { AuthUser } from './auth-user.js';
 import { registerSchema, type RegisterDto } from './register.dto.js';
 import { signInSchema, type SignInDto } from './sign-in.dto.js';
 
-@Public()
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -19,6 +18,7 @@ export class AuthController {
     private readonly signInService: SignInService,
   ) {}
 
+  @Public()
   @Post('register')
   @HttpCode(201)
   register(
@@ -27,6 +27,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @Public()
   @Post('sign-in')
   @HttpCode(200)
   async signIn(
@@ -36,8 +37,13 @@ export class AuthController {
     if (!user) {
       throw new UnauthorizedException('Invalid email or password.');
     }
-    // Creates the session and sets the session cookie on the response.
     await this.signInService.signIn(user.id, { method: 'password' });
     return { user };
+  }
+
+  @Post('sign-out')
+  @HttpCode(204)
+  async signOut(): Promise<void> {
+    await this.signInService.signOut();
   }
 }

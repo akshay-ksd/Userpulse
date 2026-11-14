@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 54 |
+| Not Started | 53 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 2 |
-| Overall completion | 4% |
+| Done | 3 |
+| Overall completion | 5% |
 
 **Last updated:** 2026-11-14
 
@@ -64,7 +64,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 |---|---|---|---:|---|---|---|---|
 | US-001 | Register an account | Done | 100% | Kimi Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-002 | Sign in | Done | 100% | Kimi Code agent | 2026-11-14 | 2026-11-14 | — |
-| US-003 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-003 | Sign out | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-004 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-02 Organizations and Membership
@@ -245,6 +245,41 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified by automated unit/e2e/contract tests and a browser-driven run on 2026-11-14; results recorded above.
 
+### US-003 — Sign out
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-14
+- **Last updated:** 2026-11-14
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-003-sign-out.md`
+
+**Acceptance criteria**
+- [x] The user can sign out from the application. — "Sign out" button on `/dashboard`, calls `POST /auth/sign-out`.
+- [x] The active session is invalidated. — `SignInService.signOut()` deletes the session row and clears the cookie.
+- [x] Protected pages and APIs require authentication after sign-out. — `GET /me` returns 401 after sign-out; `/dashboard` redirects to `/login`.
+
+**Implementation notes**
+- API: Moved `@Public()` from class-level to individual `register()` and `signIn()` methods on `AuthController`, leaving `signOut()` protected by the global auth guard. `signOut()` calls `SignInService.signOut()` (from `@nestjs/authentication`) and returns 204.
+- Web: Added "Sign out" button to `/dashboard` page with loading state. On click, POSTs to `/auth/sign-out` with credentials, then redirects to `/login`. Handles network errors by still redirecting.
+- No database changes needed — existing `PrismaSessionStore.deleteSession()` handles session removal.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 23 passed.
+- [x] Integration / E2E tests: `pnpm --filter api test:e2e` — 23 passed (2 new sign-out tests: session invalidation + unauthenticated rejection).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm --filter api typecheck` — pass (pre-existing `LayoutProps` issue in `apps/web/src/app/layout.tsx` unrelated to this change).
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- "Sign out everywhere" (`signOutEverywhere()`) available in the package but deferred.
+- Sign-out button currently only on `/dashboard`; shared nav/layout will carry it once more pages exist.
+
+**Completion note**
+- All three acceptance criteria verified by automated e2e tests on 2026-11-14; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -285,6 +320,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-14 | US-003 | Sign-out implemented: `POST /auth/sign-out` endpoint (204), dashboard sign-out button, e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-002 | Sign-in implemented end to end (sessions table + Prisma session store, `@nestjs/authentication` cookie sessions, `/login` + protected `/dashboard`, contract/e2e tests); all acceptance criteria verified | In Progress → Done | Kimi Code agent |
 | 2026-11-14 | US-002 | Task brief created (`harness/tasks/US-002-sign-in.md`); design: `@nestjs/authentication` session cookie + Prisma session store | Not Started → In Progress | Kimi Code agent |
 | 2026-11-14 | US-001 | Registration implemented end to end (DB migration, API, web page, tests); all acceptance criteria verified | Not Started → Done | Kimi Code agent |

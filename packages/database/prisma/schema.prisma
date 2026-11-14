@@ -1,0 +1,112 @@
+// Userpulse — application state (system of record).
+// Behavioral event data lives in ClickHouse, not here. See harness/architecture.md §4.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships OrganizationMember[]
+
+  @@map("users")
+}
+
+// Authentication sessions for @nestjs/authentication's SessionStore.
+// `id` is the SHA-256 hash of the session cookie token — never the token itself.
+// No FK to users: the store's contract tests use throwaway user ids, and
+// SessionAuth.validate() ends sessions whose user is gone anyway.
+model Session {
+  id           String   @id
+  userId       String
+  createdAt    DateTime @db.Timestamptz(6)
+  expiresAt    DateTime @db.Timestamptz(6)
+  lastActiveAt DateTime @db.Timestamptz(6)
+  mfa          String?
+  metadata     Json?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members  OrganizationMember[]
+  projects Project[]
+
+  @@map("organizations")
+}
+
+enum OrganizationRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model OrganizationMember {
+  id             String           @id @default(uuid())
+  organizationId String
+  userId         String
+  role           OrganizationRole @default(MEMBER)
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@map("organization_members")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Project {
+  id             String        @id @default(uuid())
+  organizationId String
+  name           String
+  description    String?
+  status         ProjectStatus @default(ACTIVE)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKeys      ProjectApiKey[]
+
+  @@index([organizationId])
+  @@map("projects")
+}
+
+model ProjectApiKey {
+  id          String    @id @default(uuid())
+  projectId   String
+  name        String
+  keyHash     String    @unique
+  keyPrefix   String
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+  lastUsedAt  DateTime?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_api_keys")
+}

@@ -27,6 +27,8 @@ describe('AuthController (e2e)', () => {
   });
 
   beforeEach(async () => {
+    await prisma.organizationMember.deleteMany();
+    await prisma.organization.deleteMany();
     await prisma.passwordResetToken.deleteMany();
     await prisma.session.deleteMany();
     await prisma.user.deleteMany();

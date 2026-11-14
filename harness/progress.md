@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 52 |
+| Not Started | 51 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 4 |
-| Overall completion | 7% |
+| Done | 5 |
+| Overall completion | 9% |
 
 **Last updated:** 2026-11-14
 
@@ -71,7 +71,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-005 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-005 | Create an organization | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-006 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-007 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-008 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -318,6 +318,43 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified by automated e2e tests on 2026-11-14; results recorded above.
 
+### US-005 — Create an organization
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-14
+- **Last updated:** 2026-11-14
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-005-create-organization.md`
+
+**Acceptance criteria**
+- [x] An authenticated user can create an organization with a valid name. — `POST /organizations` (201) creates org with slug derived from name.
+- [x] The creator becomes the organization owner. — `OrganizationMember` with role `OWNER` created in same transaction.
+- [x] The organization appears in the user's workspace. — `/dashboard` fetches `GET /organizations` and lists orgs with create form.
+- [x] The user cannot access another organization's data by changing an identifier. — `GET /organizations/:id` checks membership, returns 404 for non-members; e2e test verifies tenant isolation.
+
+**Implementation notes**
+- API: `OrganizationsModule` with `OrganizationsController` and `OrganizationsService`. Three endpoints: `POST /organizations`, `GET /organizations`, `GET /organizations/:id`. All protected by global auth guard. Slug generated from name with collision retry (up to 3 attempts with random suffix).
+- Web: `/dashboard` updated to fetch and display user's organizations, with inline create form, empty state, loading/error handling.
+- No database migration needed — `Organization`, `OrganizationMember`, and `OrganizationRole` were in the initial migration.
+- Fixed e2e test isolation: added `fileParallelism: false` to vitest e2e config and organization cleanup to auth test's `beforeEach`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 35 passed (12 new: slug generation, service create/findByUser/findOneByUser).
+- [x] Integration / E2E tests: `pnpm --filter api test:e2e` — 42 passed (10 new: create 201/401/400/slug-collision, list own/empty/401, get-one member/non-member/401).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Organization edit/delete deferred to later stories.
+- Org workspace page (clicking into an org) deferred to US-006+.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit/e2e tests on 2026-11-14; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -358,6 +395,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-14 | US-005 | Organization creation implemented: `POST /organizations`, `GET /organizations`, `GET /organizations/:id`, dashboard org list + create form, unit + e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-004 | Password reset implemented: `POST /auth/forgot-password` + `POST /auth/reset-password`, web pages, token model, e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-003 | Sign-out implemented: `POST /auth/sign-out` endpoint (204), dashboard sign-out button, e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-002 | Sign-in implemented end to end (sessions table + Prisma session store, `@nestjs/authentication` cookie sessions, `/login` + protected `/dashboard`, contract/e2e tests); all acceptance criteria verified | In Progress → Done | Kimi Code agent |

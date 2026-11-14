@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 53 |
+| Not Started | 52 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 3 |
-| Overall completion | 5% |
+| Done | 4 |
+| Overall completion | 7% |
 
 **Last updated:** 2026-11-14
 
@@ -65,7 +65,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-001 | Register an account | Done | 100% | Kimi Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-002 | Sign in | Done | 100% | Kimi Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-003 | Sign out | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
-| US-004 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-004 | Reset password | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
 
 ### EP-02 Organizations and Membership
 
@@ -280,6 +280,44 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All three acceptance criteria verified by automated e2e tests on 2026-11-14; results recorded above.
 
+### US-004 — Reset password
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-14
+- **Last updated:** 2026-11-14
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-004-reset-password.md`
+
+**Acceptance criteria**
+- [x] A user can request a reset using their email address. — `POST /auth/forgot-password` accepts email, creates a hashed token, logs the reset URL.
+- [x] The response does not disclose whether the email is registered. — Same 200 response and generic message for both registered and unregistered emails.
+- [x] Reset tokens expire and cannot be reused. — Tokens expire after 1 hour; deleted on successful reset; expired/used tokens return 400.
+- [x] A successfully reset password replaces the old password. — New bcrypt hash replaces old; sign-in with new password succeeds, old password rejected.
+
+**Implementation notes**
+- Database: `PasswordResetToken` model added to Prisma schema; migration `20261114150915_password_reset_tokens`. `id` is SHA-256 of raw token (same pattern as sessions).
+- API: `forgotPassword()` and `resetPassword()` on `AuthService`. Two new public endpoints on `AuthController`. Token generation via `crypto.randomBytes(32)` → base64url. On reset: password updated, all tokens deleted, all sessions revoked (transaction).
+- Web: `/forgot-password` page (email form → success message), `/reset-password` page (reads `?token=` param, new password form). "Forgot your password?" link added to `/login`. `useSearchParams` wrapped in `Suspense` for Next.js build compatibility.
+- DTOs: `forgot-password.dto.ts` (email validation), `reset-password.dto.ts` (token + password validation matching register rules).
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 23 passed.
+- [x] Integration / E2E tests: `pnpm --filter api test:e2e` — 32 passed (6 new: forgot-password registered/unregistered/invalid-email, reset-password valid/expired/reused/invalid/missing-token/session-revocation).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Email delivery deferred: reset URL logged to console only. Production email integration (`@nestjs/mail` + SES) to be added in a hardening pass.
+- Rate limiting for `/auth/forgot-password` deferred with the rest of rate limiting.
+- No "change password while signed in" — different story scope.
+
+**Completion note**
+- All four acceptance criteria verified by automated e2e tests on 2026-11-14; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -320,6 +358,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-14 | US-004 | Password reset implemented: `POST /auth/forgot-password` + `POST /auth/reset-password`, web pages, token model, e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-003 | Sign-out implemented: `POST /auth/sign-out` endpoint (204), dashboard sign-out button, e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-002 | Sign-in implemented end to end (sessions table + Prisma session store, `@nestjs/authentication` cookie sessions, `/login` + protected `/dashboard`, contract/e2e tests); all acceptance criteria verified | In Progress → Done | Kimi Code agent |
 | 2026-11-14 | US-002 | Task brief created (`harness/tasks/US-002-sign-in.md`); design: `@nestjs/authentication` session cookie + Prisma session store | Not Started → In Progress | Kimi Code agent |

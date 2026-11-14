@@ -27,6 +27,7 @@ describe('AuthController (e2e)', () => {
   });
 
   beforeEach(async () => {
+    await prisma.passwordResetToken.deleteMany();
     await prisma.session.deleteMany();
     await prisma.user.deleteMany();
   });
@@ -224,6 +225,222 @@ describe('AuthController (e2e)', () => {
 
     it('rejects sign-out without a session', async () => {
       await request(app.getHttpServer()).post('/auth/sign-out').expect(401);
+    });
+  });
+
+  describe('forgot-password', () => {
+    const jane = { email: 'jane@example.com', password: 'password1' };
+
+    beforeEach(async () => {
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ ...jane, name: 'Jane' })
+        .expect(201);
+    });
+
+    it('returns the same 200 message for a registered email', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: jane.email })
+        .expect(200);
+
+      expect(response.body.message).toBe(
+        'If an account with that email exists, a password reset link has been sent.',
+      );
+
+      expect(await prisma.passwordResetToken.count()).toBe(1);
+    });
+
+    it('returns the same 200 message for an unregistered email', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: 'nobody@example.com' })
+        .expect(200);
+
+      expect(response.body.message).toBe(
+        'If an account with that email exists, a password reset link has been sent.',
+      );
+
+      expect(await prisma.passwordResetToken.count()).toBe(0);
+    });
+
+    it('rejects an invalid email with 400', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: 'not-an-email' })
+        .expect(400);
+    });
+  });
+
+  describe('reset-password', () => {
+    const jane = { email: 'jane@example.com', password: 'password1' };
+    const newPassword = 'newPass123';
+
+    beforeEach(async () => {
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send({ ...jane, name: 'Jane' })
+        .expect(201);
+    });
+
+    async function getResetToken(): Promise<string> {
+      await request(app.getHttpServer())
+        .post('/auth/forgot-password')
+        .send({ email: jane.email })
+        .expect(200);
+
+      const tokenRow = await prisma.passwordResetToken.findFirst();
+      expect(tokenRow).not.toBeNull();
+
+      // We need the raw token, not the hash. Since we can't intercept the log,
+      // we'll create the token directly for testing purposes.
+      // Instead, let's use the service's approach: generate and look up by hash.
+      // For e2e, we need to extract from the stored hash → raw token mapping.
+      // The simplest approach: create a known token directly.
+      const { randomBytes } = await import('node:crypto');
+      const rawToken = randomBytes(32).toString('base64url');
+      const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { email: jane.email },
+      });
+
+      await prisma.passwordResetToken.deleteMany();
+      await prisma.passwordResetToken.create({
+        data: {
+          id: tokenHash,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+        },
+      });
+
+      return rawToken;
+    }
+
+    it('resets the password with a valid token', async () => {
+      const rawToken = await getResetToken();
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: rawToken, password: newPassword })
+        .expect(200);
+
+      expect(response.body.message).toBe(
+        'Your password has been reset. You can now sign in.',
+      );
+
+      // Token is deleted after use
+      expect(await prisma.passwordResetToken.count()).toBe(0);
+
+      // Sessions are revoked
+      expect(await prisma.session.count()).toBe(0);
+
+      // Can sign in with new password
+      await request(app.getHttpServer())
+        .post('/auth/sign-in')
+        .send({ email: jane.email, password: newPassword })
+        .expect(200);
+
+      // Cannot sign in with old password
+      await request(app.getHttpServer())
+        .post('/auth/sign-in')
+        .send({ email: jane.email, password: jane.password })
+        .expect(401);
+    });
+
+    it('rejects an expired token', async () => {
+      const { randomBytes } = await import('node:crypto');
+      const rawToken = randomBytes(32).toString('base64url');
+      const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { email: jane.email },
+      });
+
+      await prisma.passwordResetToken.create({
+        data: {
+          id: tokenHash,
+          userId: user.id,
+          expiresAt: new Date(Date.now() - 1000), // expired
+        },
+      });
+
+      const response = await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: rawToken, password: newPassword })
+        .expect(400);
+
+      expect(response.body.message).toBe(
+        'Reset link has expired or is invalid.',
+      );
+    });
+
+    it('rejects an already-used token', async () => {
+      const rawToken = await getResetToken();
+
+      // Use the token
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: rawToken, password: newPassword })
+        .expect(200);
+
+      // Try to use the same token again
+      const response = await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: rawToken, password: 'anotherPass1' })
+        .expect(400);
+
+      expect(response.body.message).toBe(
+        'Reset link has expired or is invalid.',
+      );
+    });
+
+    it('rejects an invalid token', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: 'totally-invalid-token', password: newPassword })
+        .expect(400);
+
+      expect(response.body.message).toBe(
+        'Reset link has expired or is invalid.',
+      );
+    });
+
+    it('rejects a missing token with 400', async () => {
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ password: newPassword })
+        .expect(400);
+    });
+
+    it('revokes existing sessions on password reset', async () => {
+      // Sign in to create a session
+      const signInRes = await request(app.getHttpServer())
+        .post('/auth/sign-in')
+        .send(jane)
+        .expect(200);
+
+      const cookie = (
+        signInRes.headers['set-cookie'] as unknown as string[]
+      )[0].split(';')[0];
+
+      expect(await prisma.session.count()).toBe(1);
+
+      // Reset password
+      const rawToken = await getResetToken();
+      await request(app.getHttpServer())
+        .post('/auth/reset-password')
+        .send({ token: rawToken, password: newPassword })
+        .expect(200);
+
+      // Old session is gone
+      expect(await prisma.session.count()).toBe(0);
+
+      // Old session cookie no longer works
+      await request(app.getHttpServer())
+        .get('/me')
+        .set('Cookie', cookie)
+        .expect(401);
     });
   });
 });

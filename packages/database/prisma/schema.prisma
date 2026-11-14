@@ -41,6 +41,17 @@ model Session {
   @@map("sessions")
 }
 
+model PasswordResetToken {
+  id        String   @id
+  userId    String
+  expiresAt DateTime @db.Timestamptz(6)
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_reset_tokens")
+}
+
 model Organization {
   id        String   @id @default(uuid())
   name      String

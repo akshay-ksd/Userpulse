@@ -139,12 +139,23 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-sm text-zinc-600 dark:text-zinc-400">
-          Don&apos;t have an account?{' '}
-          <Link href="/register" className="font-medium text-zinc-950 underline dark:text-zinc-50">
-            Register
+        <div className="flex flex-col gap-2 text-center text-sm text-zinc-600 dark:text-zinc-400">
+          <Link
+            href="/forgot-password"
+            className="font-medium text-zinc-950 underline dark:text-zinc-50"
+          >
+            Forgot your password?
           </Link>
-        </p>
+          <p>
+            Don&apos;t have an account?{' '}
+            <Link
+              href="/register"
+              className="font-medium text-zinc-950 underline dark:text-zinc-50"
+            >
+              Register
+            </Link>
+          </p>
+        </div>
       </main>
     </div>
   );

@@ -11,6 +11,10 @@
     "dispatch": {
       "description": "Pick the next unstarted user story, plan it, build it, and update progress. Use 'dispatch next' to advance the project by one story.",
       "path": ".claude/skills/dispatch.md"
+    },
+    "progress": {
+      "description": "Show current development progress: completion %, epic status, active/blocked stories, and what's up next.",
+      "path": ".claude/skills/progress.md"
     }
   }
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 
@@ -242,7 +243,10 @@ export default function DashboardPage() {
             <ul className="flex flex-col gap-2">
               {state.orgs.map((org) => (
                 <li key={org.id}>
-                  <div className="flex items-center justify-between rounded-xl border border-black/[.08] p-4 transition-colors hover:bg-zinc-50 dark:border-white/[.145] dark:hover:bg-zinc-900">
+                  <Link
+                    href={`/organizations/${org.id}`}
+                    className="flex items-center justify-between rounded-xl border border-black/[.08] p-4 transition-colors hover:bg-zinc-50 dark:border-white/[.145] dark:hover:bg-zinc-900"
+                  >
                     <div className="flex flex-col gap-0.5">
                       <span className="font-medium text-black dark:text-zinc-50">{org.name}</span>
                       <span className="text-xs text-zinc-500 dark:text-zinc-500">{org.slug}</span>
@@ -250,7 +254,7 @@ export default function DashboardPage() {
                     <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
                       {org.role}
                     </span>
-                  </div>
+                  </Link>
                 </li>
               ))}
             </ul>

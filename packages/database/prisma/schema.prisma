@@ -18,7 +18,8 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  memberships OrganizationMember[]
+  memberships      OrganizationMember[]
+  invitationsSent  OrganizationInvitation[] @relation("invitations_sent")
 
   @@map("users")
 }
@@ -59,8 +60,9 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members  OrganizationMember[]
-  projects Project[]
+  members     OrganizationMember[]
+  invitations OrganizationInvitation[]
+  projects    Project[]
 
   @@map("organizations")
 }
@@ -83,6 +85,32 @@ model OrganizationMember {
 
   @@unique([organizationId, userId])
   @@map("organization_members")
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  CANCELLED
+}
+
+model OrganizationInvitation {
+  id             String           @id @default(uuid())
+  organizationId String
+  email          String
+  role           OrganizationRole @default(MEMBER)
+  tokenHash      String           @unique
+  status         InvitationStatus @default(PENDING)
+  invitedById    String
+  expiresAt      DateTime         @db.Timestamptz(6)
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("invitations_sent", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, email])
+  @@index([tokenHash])
+  @@map("organization_invitations")
 }
 
 enum ProjectStatus {

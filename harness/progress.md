@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 50 |
+| Not Started | 49 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 6 |
-| Overall completion | 11% |
+| Done | 7 |
+| Overall completion | 13% |
 
 **Last updated:** 2026-11-14
 
@@ -73,7 +73,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 |---|---|---|---:|---|---|---|---|
 | US-005 | Create an organization | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-006 | View organizations | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
-| US-007 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-007 | Invite a colleague | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-008 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-03 Projects and Tracking Credentials
@@ -353,6 +353,45 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All three acceptance criteria verified by automated tests and build checks on 2026-11-14; results recorded above.
 
+### US-007 — Invite a colleague
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-14
+- **Last updated:** 2026-11-14
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-007-invite-colleague.md`
+
+**Acceptance criteria**
+- [x] An authorized owner can invite an email address. — `POST /organizations/:orgId/invitations` (201), only OWNER role can invite.
+- [x] The invitation belongs to the selected organization. — Invitation stored with `organizationId`, scoped to org.
+- [x] Duplicate active invitations are handled clearly. — 409 for duplicate PENDING invitation or already-a-member email.
+- [x] Only the intended account can accept the invitation. — `POST /invitations/accept` verifies authenticated user's email matches invitation email.
+
+**Implementation notes**
+- Database: `OrganizationInvitation` model with `InvitationStatus` enum (PENDING/ACCEPTED/CANCELLED). Migration `20261114193512_organization_invitations`. Token stored as SHA-256 hash (same pattern as sessions/password-reset).
+- API: `InvitationsService` and `InvitationsController` in organizations module. Four endpoints: create (POST), list (GET), cancel (DELETE) on `/organizations/:orgId/invitations`, and accept (POST) on `/invitations/accept`. Only OWNERs can create/list/cancel. Accept requires authenticated user with matching email.
+- Web: Updated `/organizations/[id]` workspace page with invite form and pending invitations list (visible to OWNER). Created `/invitations/accept` page that handles token from URL, shows success/error states.
+- Email delivery deferred: invitation URL logged to console (same pattern as password reset in US-004).
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 50 passed (15 new invitation tests).
+- [x] Integration / E2E tests: `pnpm --filter api test:e2e` — 55 passed (13 new: create 201/401/403/409, list, cancel 204, accept 200/401/403/400).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Email delivery deferred: invitation URL logged to console only.
+- No resend invitation — owner can cancel and re-invite.
+- Only OWNERs can invite (ADMINs cannot). Can be relaxed in US-008 if needed.
+- Accept page redirects to login if unauthenticated (returnTo URL preserved).
+
+**Completion note**
+- All four acceptance criteria verified by automated unit/e2e tests on 2026-11-14; results recorded above.
+
 ### US-005 — Create an organization
 
 - **Status:** Done
@@ -430,6 +469,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-14 | US-007 | Invite colleague implemented: `OrganizationInvitation` model, `POST/GET/DELETE /organizations/:id/invitations`, `POST /invitations/accept`, org workspace invite UI, accept page; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-006 | View organizations implemented: `/organizations/[id]` workspace page, dashboard org cards now link to workspace, loading/error/not-found states; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-005 | Organization creation implemented: `POST /organizations`, `GET /organizations`, `GET /organizations/:id`, dashboard org list + create form, unit + e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-004 | Password reset implemented: `POST /auth/forgot-password` + `POST /auth/reset-password`, web pages, token model, e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |

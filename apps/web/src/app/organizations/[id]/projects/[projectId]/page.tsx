@@ -128,6 +128,8 @@ function TrackingCredentials({ orgId, projectId }: { orgId: string; projectId: s
   const [creating, setCreating] = useState(false);
   const [newKey, setNewKey] = useState<ApiKeyCreated | null>(null);
   const [copied, setCopied] = useState(false);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [rotatingId, setRotatingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -204,6 +206,66 @@ function TrackingCredentials({ orgId, projectId }: { orgId: string; projectId: s
     }
   }
 
+  async function handleRevoke(keyId: string) {
+    if (!confirm('Are you sure you want to revoke this credential? This cannot be undone.')) return;
+    setRevokingId(keyId);
+    setError('');
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/api-keys/${keyId}`,
+        { method: 'DELETE', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to revoke credential.');
+        return;
+      }
+      setCredentials((prev) => prev.filter((c) => c.id !== keyId));
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setRevokingId(null);
+    }
+  }
+
+  async function handleRotate(cred: ApiKeyInfo) {
+    if (!confirm('Rotate this credential? The old key will be revoked immediately.')) return;
+    setRotatingId(cred.id);
+    setError('');
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/api-keys/${cred.id}/rotate`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ name: cred.name }),
+        },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to rotate credential.');
+        return;
+      }
+      const created = (await res.json()) as ApiKeyCreated;
+      setNewKey(created);
+      setCredentials((prev) => [
+        {
+          id: created.id,
+          name: created.name,
+          keyPrefix: created.keyPrefix,
+          createdAt: created.createdAt,
+          lastUsedAt: null,
+        },
+        ...prev.filter((c) => c.id !== cred.id),
+      ]);
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setRotatingId(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-medium text-black dark:text-zinc-50">Tracking credentials</h2>
@@ -272,15 +334,33 @@ function TrackingCredentials({ orgId, projectId }: { orgId: string; projectId: s
                   {cred.keyPrefix}••••••••
                 </span>
               </div>
-              <div className="flex flex-col items-end gap-0.5">
-                <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                  Created {new Date(cred.createdAt).toLocaleDateString()}
-                </span>
-                {cred.lastUsedAt && (
-                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
-                    Last used {new Date(cred.lastUsedAt).toLocaleDateString()}
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col items-end gap-0.5">
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Created {new Date(cred.createdAt).toLocaleDateString()}
                   </span>
-                )}
+                  {cred.lastUsedAt && (
+                    <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                      Last used {new Date(cred.lastUsedAt).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-1">
+                  <button
+                    onClick={() => handleRotate(cred)}
+                    disabled={rotatingId === cred.id || revokingId === cred.id}
+                    className="rounded px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  >
+                    {rotatingId === cred.id ? 'Rotating…' : 'Rotate'}
+                  </button>
+                  <button
+                    onClick={() => handleRevoke(cred.id)}
+                    disabled={revokingId === cred.id || rotatingId === cred.id}
+                    className="rounded px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950"
+                  >
+                    {revokingId === cred.id ? 'Revoking…' : 'Revoke'}
+                  </button>
+                </div>
               </div>
             </div>
           ))}

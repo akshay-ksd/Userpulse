@@ -1,4 +1,12 @@
-import { Body, Controller, Get, HttpCode, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Post,
+} from '@nestjs/common';
 import { CurrentUser } from '@nestjs/authentication';
 import type { AuthUser } from '../auth/auth-user.js';
 import {
@@ -33,5 +41,30 @@ export class ApiKeysController {
     @Param('projectId') projectId: string,
   ): Promise<ApiKeyInfo[]> {
     return this.apiKeysService.findByProject(orgId, projectId, user.id);
+  }
+
+  @Delete(':keyId')
+  @HttpCode(204)
+  revoke(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+    @Param('keyId') keyId: string,
+  ): Promise<void> {
+    return this.apiKeysService
+      .revoke(orgId, projectId, keyId, user.id)
+      .then(() => undefined);
+  }
+
+  @Post(':keyId/rotate')
+  @HttpCode(201)
+  rotate(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+    @Param('keyId') keyId: string,
+    @Body({ schema: createApiKeySchema }) dto: CreateApiKeyDto,
+  ): Promise<ApiKeyCreated> {
+    return this.apiKeysService.rotate(orgId, projectId, keyId, user.id, dto);
   }
 }

@@ -143,6 +143,7 @@ model ProjectApiKey {
   createdBy   String
   createdAt   DateTime  @default(now())
   revokedAt   DateTime?
+  revokedBy   String?
   lastUsedAt  DateTime?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)

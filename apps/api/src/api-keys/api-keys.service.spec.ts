@@ -14,8 +14,11 @@ function mockPrisma() {
     },
     projectApiKey: {
       create: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
+      update: vi.fn(),
     },
+    $transaction: vi.fn(),
   } as unknown as PrismaService;
 }
 
@@ -236,6 +239,190 @@ describe('ApiKeysService', () => {
 
       await expect(
         service.findByProject('org-1', 'proj-1', 'user-2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('revoke', () => {
+    it('sets revokedAt and revokedBy on the key', async () => {
+      const prisma = mockPrisma();
+      const service = new ApiKeysService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (
+        prisma.projectApiKey.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        id: 'key-1',
+        projectId: 'proj-1',
+        name: 'Production',
+        keyPrefix: 'abcd1234',
+        revokedAt: null,
+      });
+      (
+        prisma.projectApiKey.update as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        id: 'key-1',
+        name: 'Production',
+        keyPrefix: 'abcd1234',
+        revokedAt: new Date(),
+        revokedBy: 'user-1',
+      });
+
+      const result = await service.revoke('org-1', 'proj-1', 'key-1', 'user-1');
+
+      expect(result.id).toBe('key-1');
+      expect(result.revokedAt).toBeInstanceOf(Date);
+      expect(prisma.projectApiKey.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'key-1' },
+          data: expect.objectContaining({ revokedBy: 'user-1' }),
+        }),
+      );
+    });
+
+    it('throws NotFoundException for non-member', async () => {
+      const prisma = mockPrisma();
+      const service = new ApiKeysService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.revoke('org-1', 'proj-1', 'key-1', 'user-2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException for non-existent key', async () => {
+      const prisma = mockPrisma();
+      const service = new ApiKeysService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (
+        prisma.projectApiKey.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.revoke('org-1', 'proj-1', 'key-999', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException for already-revoked key', async () => {
+      const prisma = mockPrisma();
+      const service = new ApiKeysService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (
+        prisma.projectApiKey.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.revoke('org-1', 'proj-1', 'key-1', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('rotate', () => {
+    it('revokes old key and returns a new one', async () => {
+      const prisma = mockPrisma();
+      const service = new ApiKeysService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (
+        prisma.projectApiKey.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        id: 'key-1',
+        projectId: 'proj-1',
+        name: 'Production',
+        keyPrefix: 'abcd1234',
+        revokedAt: null,
+      });
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async ([, createPromise]) => {
+          const newRecord = await createPromise;
+          return [{}, newRecord];
+        },
+      );
+      (
+        prisma.projectApiKey.update as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({});
+      (
+        prisma.projectApiKey.create as ReturnType<typeof vi.fn>
+      ).mockImplementation(async ({ data }) => ({
+        id: 'key-2',
+        ...data,
+        createdAt: new Date(),
+        revokedAt: null,
+        lastUsedAt: null,
+      }));
+
+      const result = await service.rotate(
+        'org-1',
+        'proj-1',
+        'key-1',
+        'user-1',
+        {
+          name: 'Production',
+        },
+      );
+
+      expect(result.id).toBe('key-2');
+      expect(result.key).toBeDefined();
+      expect(result.key.length).toBeGreaterThan(8);
+      expect(result.name).toBe('Production');
+    });
+
+    it('throws NotFoundException for non-member', async () => {
+      const prisma = mockPrisma();
+      const service = new ApiKeysService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.rotate('org-1', 'proj-1', 'key-1', 'user-2', { name: 'Test' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException for non-existent key', async () => {
+      const prisma = mockPrisma();
+      const service = new ApiKeysService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (
+        prisma.projectApiKey.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.rotate('org-1', 'proj-1', 'key-999', 'user-1', {
+          name: 'Test',
+        }),
       ).rejects.toThrow(NotFoundException);
     });
   });

@@ -230,6 +230,190 @@ describe('ApiKeysController (e2e)', () => {
     });
   });
 
+  describe('DELETE /organizations/:orgId/projects/:projectId/api-keys/:keyId', () => {
+    it('revokes a credential (204)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie)
+        .send({ name: 'ToRevoke' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete(`${apiKeysUrl(orgId, projectId)}/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .expect(204);
+
+      const record = await prisma.projectApiKey.findUnique({
+        where: { id: createRes.body.id },
+      });
+      expect(record!.revokedAt).not.toBeNull();
+      expect(record!.revokedBy).toBeDefined();
+    });
+
+    it('revoked credential no longer appears in list', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie)
+        .send({ name: 'WillBeRevoked' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete(`${apiKeysUrl(orgId, projectId)}/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .expect(204);
+
+      const listRes = await request(app.getHttpServer())
+        .get(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie)
+        .expect(200);
+
+      expect(listRes.body).toEqual([]);
+    });
+
+    it('rejects unauthenticated (401)', async () => {
+      await request(app.getHttpServer())
+        .delete(`${apiKeysUrl('org-1', 'proj-1')}/key-1`)
+        .expect(401);
+    });
+
+    it('rejects non-member (404)', async () => {
+      const cookie1 = await registerAndSignIn('user1@example.com');
+      const cookie2 = await registerAndSignIn('user2@example.com');
+      const orgId = await createOrg(cookie1);
+      const projectId = await createProject(cookie1, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie1)
+        .send({ name: 'Test' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete(`${apiKeysUrl(orgId, projectId)}/${createRes.body.id}`)
+        .set('Cookie', cookie2)
+        .expect(404);
+    });
+
+    it('returns 404 for non-existent key', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      await request(app.getHttpServer())
+        .delete(
+          `${apiKeysUrl(orgId, projectId)}/00000000-0000-0000-0000-000000000000`,
+        )
+        .set('Cookie', cookie)
+        .expect(404);
+    });
+  });
+
+  describe('POST /organizations/:orgId/projects/:projectId/api-keys/:keyId/rotate', () => {
+    it('rotates a credential: old revoked, new returned (201)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie)
+        .send({ name: 'OldKey' })
+        .expect(201);
+
+      const rotateRes = await request(app.getHttpServer())
+        .post(`${apiKeysUrl(orgId, projectId)}/${createRes.body.id}/rotate`)
+        .set('Cookie', cookie)
+        .send({ name: 'NewKey' })
+        .expect(201);
+
+      expect(rotateRes.body.id).toBeDefined();
+      expect(rotateRes.body.id).not.toBe(createRes.body.id);
+      expect(rotateRes.body.key).toBeDefined();
+      expect(rotateRes.body.name).toBe('NewKey');
+
+      const oldRecord = await prisma.projectApiKey.findUnique({
+        where: { id: createRes.body.id },
+      });
+      expect(oldRecord!.revokedAt).not.toBeNull();
+      expect(oldRecord!.revokedBy).toBeDefined();
+    });
+
+    it('new key appears in list, old does not', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie)
+        .send({ name: 'OldKey' })
+        .expect(201);
+
+      const rotateRes = await request(app.getHttpServer())
+        .post(`${apiKeysUrl(orgId, projectId)}/${createRes.body.id}/rotate`)
+        .set('Cookie', cookie)
+        .send({ name: 'NewKey' })
+        .expect(201);
+
+      const listRes = await request(app.getHttpServer())
+        .get(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie)
+        .expect(200);
+
+      expect(listRes.body).toHaveLength(1);
+      expect(listRes.body[0].id).toBe(rotateRes.body.id);
+      expect(listRes.body[0].name).toBe('NewKey');
+    });
+
+    it('rejects unauthenticated (401)', async () => {
+      await request(app.getHttpServer())
+        .post(`${apiKeysUrl('org-1', 'proj-1')}/key-1/rotate`)
+        .send({ name: 'Test' })
+        .expect(401);
+    });
+
+    it('rejects non-member (404)', async () => {
+      const cookie1 = await registerAndSignIn('user1@example.com');
+      const cookie2 = await registerAndSignIn('user2@example.com');
+      const orgId = await createOrg(cookie1);
+      const projectId = await createProject(cookie1, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie1)
+        .send({ name: 'Test' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`${apiKeysUrl(orgId, projectId)}/${createRes.body.id}/rotate`)
+        .set('Cookie', cookie2)
+        .send({ name: 'Hack' })
+        .expect(404);
+    });
+
+    it('returns 404 for non-existent key', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      await request(app.getHttpServer())
+        .post(
+          `${apiKeysUrl(orgId, projectId)}/00000000-0000-0000-0000-000000000000/rotate`,
+        )
+        .set('Cookie', cookie)
+        .send({ name: 'Test' })
+        .expect(404);
+    });
+  });
+
   describe('tenant isolation', () => {
     it("user cannot create credential for another user's project", async () => {
       const cookie1 = await registerAndSignIn('alice@example.com');
@@ -241,6 +425,43 @@ describe('ApiKeysController (e2e)', () => {
         .post(apiKeysUrl(orgId, projectId))
         .set('Cookie', cookie2)
         .send({ name: 'Hack' })
+        .expect(404);
+    });
+
+    it("user cannot revoke another user's credential", async () => {
+      const cookie1 = await registerAndSignIn('alice@example.com');
+      const cookie2 = await registerAndSignIn('bob@example.com');
+      const orgId = await createOrg(cookie1);
+      const projectId = await createProject(cookie1, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie1)
+        .send({ name: 'Secret' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .delete(`${apiKeysUrl(orgId, projectId)}/${createRes.body.id}`)
+        .set('Cookie', cookie2)
+        .expect(404);
+    });
+
+    it("user cannot rotate another user's credential", async () => {
+      const cookie1 = await registerAndSignIn('alice@example.com');
+      const cookie2 = await registerAndSignIn('bob@example.com');
+      const orgId = await createOrg(cookie1);
+      const projectId = await createProject(cookie1, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(apiKeysUrl(orgId, projectId))
+        .set('Cookie', cookie1)
+        .send({ name: 'Secret' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post(`${apiKeysUrl(orgId, projectId)}/${createRes.body.id}/rotate`)
+        .set('Cookie', cookie2)
+        .send({ name: 'Hijacked' })
         .expect(404);
     });
   });

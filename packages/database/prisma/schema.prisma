@@ -151,3 +151,23 @@ model ProjectApiKey {
   @@index([projectId])
   @@map("project_api_keys")
 }
+
+model Event {
+  id             String   @id @default(uuid())
+  organizationId String
+  projectId      String
+  eventId        String
+  eventName      String
+  anonymousId    String?
+  userId         String?
+  properties     Json?
+  sdkVersion     String?
+  eventTimestamp  DateTime @db.Timestamptz(6)
+  ingestedAt     DateTime @default(now()) @db.Timestamptz(6)
+  processed      Boolean  @default(false)
+
+  @@index([projectId, ingestedAt])
+  @@index([processed, ingestedAt])
+  @@index([eventId])
+  @@map("events")
+}

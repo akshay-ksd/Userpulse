@@ -48,7 +48,7 @@ function resolveConfig(config: UserpulseConfig): ResolvedConfig {
 
 export class UserpulseClient implements UserpulseInstance {
   readonly config: Readonly<ResolvedConfig>;
-  readonly anonymousId: string;
+  anonymousId: string;
   readonly sdkVersion: string = SDK_VERSION;
   readonly isInitialized: boolean = true;
   userId: string | null = null;
@@ -167,6 +167,19 @@ export class UserpulseClient implements UserpulseInstance {
     } catch {
       if (this.config.debug) {
         console.warn('UserpulseSDK: Unexpected error in page().');
+      }
+    }
+  }
+
+  reset(): void {
+    try {
+      this.userId = null;
+      this.userTraits = null;
+      this.anonymousId = generateUUID();
+      persistAnonymousId(this.anonymousId);
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Unexpected error in reset().');
       }
     }
   }

@@ -87,7 +87,7 @@ After calling `identify()`, all subsequent `track()` events include the `userId`
 - After `identify()`: events carry both `anonymousId` and `userId`.
 - The `anonymousId` is preserved across identity changes, enabling session stitching.
 - Calling `identify()` again with a different `userId` replaces the current identity.
-- To fully reset identity (including `anonymousId`), use `reset()` (coming in a future version).
+- To fully reset identity (including `anonymousId`), use `reset()` — see below.
 
 If called before `init()`, with an invalid userId, or if an unexpected error occurs, the call is silently ignored. Enable `debug: true` to see warnings.
 
@@ -109,6 +109,25 @@ Each page event is created with `eventName: '$page'` and follows the standard ev
 **Privacy:** The SDK does not automatically collect the browser URL, query parameters, referrer, or page content. Only the data you explicitly pass is recorded.
 
 If called before `init()` or when the queue is full, the call is silently ignored. Enable `debug: true` to see warnings.
+
+### `reset(): void`
+
+Reset the active identity. Call this when the user signs out of your application.
+
+```typescript
+import { reset } from '@userpulse/sdk';
+
+reset();
+```
+
+`reset()` performs a full identity reset:
+- Clears the `userId` set by `identify()`.
+- Clears any stored user traits.
+- Generates a new `anonymousId` so that subsequent events are not linked to the previous user.
+
+After `reset()`, events carry only the new `anonymousId` — no `userId` is included until `identify()` is called again. Previously queued events are not affected; they retain the identity they were recorded with.
+
+If called before `init()` or if an unexpected error occurs, the call is silently ignored. Enable `debug: true` to see warnings.
 
 ### `getClient(): UserpulseInstance`
 

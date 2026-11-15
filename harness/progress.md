@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 39 |
+| Not Started | 38 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 17 |
-| Overall completion | 30% |
+| Done | 18 |
+| Overall completion | 32% |
 
 **Last updated:** 2026-11-15
 
@@ -94,7 +94,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-015 | Track a product event | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-016 | Identify a user | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-017 | Track page views | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-018 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-018 | Reset user identity | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-019 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-020 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
@@ -806,6 +806,43 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
 
+### US-018 — Reset user identity
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-018-reset-user-identity.md`
+
+**Acceptance criteria**
+- [x] The SDK provides a reset method. — `reset()` on `UserpulseClient`, `UserpulseInstance` interface, and top-level module export.
+- [x] Reset clears the active identified user reference. — `userId` set to `null`, `userTraits` set to `null`.
+- [x] Subsequent events use an anonymous or newly supplied identity. — New `anonymousId` generated and persisted; events after `reset()` carry only the new anonymous ID.
+- [x] The behavior is documented and tested. — README updated with `reset()` docs; 11 unit tests covering all behaviors.
+
+**Implementation notes**
+- SDK: Added `reset()` to `UserpulseInstance` interface (`types.ts`), `UserpulseClient` class (`client.ts`), and top-level export (`index.ts`).
+- `reset()` clears `userId`, `userTraits`, generates a new `anonymousId` via `crypto.randomUUID()`, and persists it to localStorage.
+- Changed `anonymousId` from `readonly` to mutable on the class (interface keeps `readonly`).
+- README updated: replaced "coming in a future version" reference, added full `reset()` API section.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 62 passed (14 init + 13 track + 11 identify + 13 page + 11 reset).
+- [x] Build: `pnpm --filter @userpulse/sdk build` — produces dist with JS + declarations.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build (full): `pnpm build` — pass.
+- [x] Lint: `pnpm lint` — pass (pre-existing API warnings only).
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- `flush()` / HTTP transport (US-019) will send queued events to the server.
+- Consent handling (US-020) is separate.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -846,6 +883,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-018 | Reset user identity: `reset()` method on `UserpulseClient` and top-level export, clears userId/traits/generates new anonymousId, 11 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-017 | Track page views: `page()` method on `UserpulseClient` and top-level export, `$page` event with pageName/pagePath, 13 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-016 | Identify a user: `identify()` method on `UserpulseClient` and top-level export, userId in subsequent track events, 11 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-015 | Track a product event: `track()` method on `UserpulseClient` and top-level export, event queuing with validation, 13 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |

@@ -51,6 +51,14 @@ export function page(name?: string, properties?: Record<string, unknown>): void 
   currentClient.page(name, properties);
 }
 
+export function reset(): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before reset().');
+    return;
+  }
+  currentClient.reset();
+}
+
 /** @internal — reset module state for tests */
 export function _reset(): void {
   currentClient = null;

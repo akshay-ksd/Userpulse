@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 47 |
+| Not Started | 46 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 9 |
-| Overall completion | 16% |
+| Done | 10 |
+| Overall completion | 18% |
 
 **Last updated:** 2026-11-15
 
@@ -81,7 +81,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-009 | Create a project | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-010 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-010 | View projects | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-011 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-012 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-013 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -503,6 +503,38 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified by automated unit/e2e tests on 2026-11-15; results recorded above.
 
+### US-010 — View projects
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+
+**Acceptance criteria**
+- [x] Only projects from authorized organizations are shown. — `GET /organizations/:orgId/projects` verifies membership (from US-009).
+- [x] Project name and status are displayed. — Project list shows name, description, status badge, and date.
+- [x] Selecting a project opens its workspace. — Project items are `<Link>` elements to `/organizations/[id]/projects/[projectId]` (from US-009).
+- [x] An empty state explains how to create a project. — "No projects yet. Create one to start tracking." with "New project" button (from US-009).
+
+**Implementation notes**
+- Web: Added status badge to project list items in `ProjectsSection` on `/organizations/[id]` page. ACTIVE projects get green badge; other statuses get neutral badge. Most of this story's functionality was already built in US-009 (project list, project detail page, empty state, auth).
+- No API changes needed — all endpoints existed from US-009.
+- No database changes needed.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 63 passed.
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+
+**Blockers / follow-up**
+- Project workspace detail page is a shell with placeholder content (tracking credentials, analytics to be added in US-012+).
+
+**Completion note**
+- All four acceptance criteria verified on 2026-11-15; results recorded above. Most functionality was already in place from US-009; this story added the status display.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -543,6 +575,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-010 | View projects: added status badge to project list; all other acceptance criteria already satisfied from US-009 | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-009 | Create a project implemented: `ProjectsModule` with `POST/GET /organizations/:orgId/projects`, `GET /organizations/:orgId/projects/:projectId`, project list on workspace page, project detail page; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-008 | Manage organization members implemented: `GET /organizations/:id/members`, `DELETE /organizations/:id/members/:memberId`, members list on workspace page, last-owner protection; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-007 | Invite colleague implemented: `OrganizationInvitation` model, `POST/GET/DELETE /organizations/:id/invitations`, `POST /invitations/accept`, org workspace invite UI, accept page; all acceptance criteria verified | Not Started → Done | Claude Code agent |

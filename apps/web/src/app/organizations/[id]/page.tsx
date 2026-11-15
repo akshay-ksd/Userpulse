@@ -426,9 +426,20 @@ function ProjectsSection({ orgId }: { orgId: string }) {
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-zinc-400">
-                  {new Date(p.createdAt).toLocaleDateString()}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      p.status === 'ACTIVE'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                        : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                    }`}
+                  >
+                    {p.status}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {new Date(p.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
               </Link>
             </li>
           ))}

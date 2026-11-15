@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 45 |
+| Not Started | 44 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 11 |
-| Overall completion | 20% |
+| Done | 12 |
+| Overall completion | 21% |
 
 **Last updated:** 2026-11-15
 
@@ -83,7 +83,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-009 | Create a project | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-010 | View projects | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-011 | Update or archive a project | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-012 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-012 | Generate a tracking credential | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-013 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-04 SDK and Event Tracking
@@ -571,6 +571,44 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified on 2026-11-15; results recorded above. Most functionality was already in place from US-009; this story added the status display.
 
+### US-012 — Generate a tracking credential
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-012-generate-tracking-credential.md`
+
+**Acceptance criteria**
+- [x] A credential can be generated for a specific project. — `POST /organizations/:orgId/projects/:projectId/api-keys` (201) creates credential.
+- [x] The full secret is shown only at creation time. — Full key returned only in creation response; list endpoint returns prefix only.
+- [x] Only a secure hash is stored. — SHA-256 hash stored in `keyHash`; raw key never persisted.
+- [x] The credential is for event ingestion, not dashboard administration. — Credential scoped to project; no admin capabilities.
+- [x] Credential creation is audited. — `createdBy` field stores the creating user's ID.
+
+**Implementation notes**
+- Database: Added `createdBy` field to `ProjectApiKey` model. Migration `20261115052155_add_api_key_created_by`.
+- API: New `ApiKeysModule` with `ApiKeysService` and `ApiKeysController`. Two endpoints: `POST` (201, returns full key once) and `GET` (returns prefix only). Key generation: `crypto.randomBytes(32)` → base64url. Hash: SHA-256. Prefix: first 8 chars.
+- Web: Replaced project detail placeholder with `TrackingCredentials` component — generate form, show-once key display with copy button and warning, credentials list with prefix and metadata.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 75 passed (8 new).
+- [x] Integration / E2E tests: `pnpm --filter api test:e2e` — 98 passed (12 new: create 201/401/404/400, list 200/empty/404/401, hash verification, tenant isolation).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Credential revocation/rotation is US-013.
+- Full audit log system deferred to EP-11.
+- Event ingestion using credentials deferred to US-021+.
+
+**Completion note**
+- All five acceptance criteria verified by automated unit/e2e tests on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -611,6 +649,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-012 | Generate a tracking credential: `ApiKeysModule` with `POST/GET /organizations/:orgId/projects/:projectId/api-keys`, credentials section on project detail page, SHA-256 hash storage, show-once key display; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-011 | Update or archive a project: `PATCH /organizations/:orgId/projects/:projectId` for name/description/status updates, edit form and archive/restore buttons on project detail page, confirmation dialog for archiving; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-010 | View projects: added status badge to project list; all other acceptance criteria already satisfied from US-009 | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-009 | Create a project implemented: `ProjectsModule` with `POST/GET /organizations/:orgId/projects`, `GET /organizations/:orgId/projects/:projectId`, project list on workspace page, project detail page; all acceptance criteria verified | Not Started → Done | Claude Code agent |

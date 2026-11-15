@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { MeController } from './me/me.controller.js';
 import { OrganizationsModule } from './organizations/organizations.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
+import { ApiKeysModule } from './api-keys/api-keys.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
@@ -24,6 +25,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
     AuthModule,
     OrganizationsModule,
     ProjectsModule,
+    ApiKeysModule,
   ],
   controllers: [AppController, MeController],
   providers: [AppService],

@@ -43,18 +43,15 @@ function EditProjectForm({
     setSubmitting(true);
 
     try {
-      const res = await fetch(
-        `${API_URL}/organizations/${orgId}/projects/${project.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({
-            name,
-            description: description || null,
-          }),
-        },
-      );
+      const res = await fetch(`${API_URL}/organizations/${orgId}/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name,
+          description: description || null,
+        }),
+      });
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -113,6 +110,186 @@ function EditProjectForm({
   );
 }
 
+type ApiKeyInfo = {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+};
+
+type ApiKeyCreated = ApiKeyInfo & { key: string };
+
+function TrackingCredentials({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [credentials, setCredentials] = useState<ApiKeyInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [name, setName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [newKey, setNewKey] = useState<ApiKeyCreated | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/api-keys`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setCredentials(await res.json());
+        }
+      } catch {
+        if (!cancelled) setError('Failed to load credentials.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setCreating(true);
+
+    try {
+      const res = await fetch(`${API_URL}/organizations/${orgId}/projects/${projectId}/api-keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to create credential.');
+        return;
+      }
+
+      const created = (await res.json()) as ApiKeyCreated;
+      setNewKey(created);
+      setCredentials((prev) => [
+        {
+          id: created.id,
+          name: created.name,
+          keyPrefix: created.keyPrefix,
+          createdAt: created.createdAt,
+          lastUsedAt: null,
+        },
+        ...prev,
+      ]);
+      setName('');
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function handleCopy(key: string) {
+    try {
+      await navigator.clipboard.writeText(key);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback: select the text
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Tracking credentials</h2>
+
+      {newKey && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 dark:border-amber-700 dark:bg-amber-950">
+          <p className="mb-2 text-sm font-medium text-amber-800 dark:text-amber-200">
+            Save this key now — it won&apos;t be shown again.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 overflow-auto rounded bg-white px-3 py-2 font-mono text-sm text-black dark:bg-zinc-900 dark:text-zinc-50">
+              {newKey.key}
+            </code>
+            <button
+              onClick={() => handleCopy(newKey.key)}
+              className="shrink-0 rounded-lg border border-black/[.15] px-3 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-50 dark:border-white/[.2] dark:text-zinc-50 dark:hover:bg-zinc-900"
+            >
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          </div>
+          <button
+            onClick={() => setNewKey(null)}
+            className="mt-2 text-xs text-amber-700 underline underline-offset-2 hover:text-amber-900 dark:text-amber-300 dark:hover:text-amber-100"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      <form onSubmit={handleCreate} className="flex gap-2">
+        <input
+          type="text"
+          required
+          placeholder="Credential name (e.g. Production)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          disabled={creating}
+          className="flex-1 rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+        />
+        <button
+          type="submit"
+          disabled={creating}
+          className="shrink-0 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+        >
+          {creating ? 'Generating…' : 'Generate'}
+        </button>
+      </form>
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {loading ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading credentials…</p>
+      ) : credentials.length === 0 ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          No credentials yet. Generate one to start sending events.
+        </p>
+      ) : (
+        <div className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
+          {credentials.map((cred) => (
+            <div key={cred.id} className="flex items-center justify-between px-4 py-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-black dark:text-zinc-50">
+                  {cred.name}
+                </span>
+                <span className="font-mono text-xs text-zinc-500 dark:text-zinc-400">
+                  {cred.keyPrefix}••••••••
+                </span>
+              </div>
+              <div className="flex flex-col items-end gap-0.5">
+                <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                  Created {new Date(cred.createdAt).toLocaleDateString()}
+                </span>
+                {cred.lastUsedAt && (
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                    Last used {new Date(cred.lastUsedAt).toLocaleDateString()}
+                  </span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectDetail() {
   const { id: orgId, projectId } = useParams<{ id: string; projectId: string }>();
   const router = useRouter();
@@ -164,21 +341,23 @@ function ProjectDetail() {
     const { project } = state;
     const isArchiving = project.status === 'ACTIVE';
 
-    if (isArchiving && !confirm('Are you sure you want to archive this project? Archived projects will not accept new events.')) {
+    if (
+      isArchiving &&
+      !confirm(
+        'Are you sure you want to archive this project? Archived projects will not accept new events.',
+      )
+    ) {
       return;
     }
 
     setArchiving(true);
     try {
-      const res = await fetch(
-        `${API_URL}/organizations/${orgId}/projects/${project.id}`,
-        {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-          body: JSON.stringify({ status: isArchiving ? 'ARCHIVED' : 'ACTIVE' }),
-        },
-      );
+      const res = await fetch(`${API_URL}/organizations/${orgId}/projects/${project.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ status: isArchiving ? 'ARCHIVED' : 'ACTIVE' }),
+      });
 
       if (res.ok) {
         const updated = (await res.json()) as ProjectInfo;
@@ -307,14 +486,11 @@ function ProjectDetail() {
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <div className="rounded-xl border border-dashed border-black/[.15] p-6 text-center dark:border-white/[.2]">
-        <p className="text-zinc-600 dark:text-zinc-400">
-          Tracking credentials and analytics will appear here.
-        </p>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
-          Created {new Date(project.createdAt).toLocaleDateString()}
-        </p>
-      </div>
+      <TrackingCredentials orgId={orgId} projectId={project.id} />
+
+      <p className="text-sm text-zinc-500 dark:text-zinc-500">
+        Created {new Date(project.createdAt).toLocaleDateString()}
+      </p>
     </main>
   );
 }

@@ -140,6 +140,7 @@ model ProjectApiKey {
   name        String
   keyHash     String    @unique
   keyPrefix   String
+  createdBy   String
   createdAt   DateTime  @default(now())
   revokedAt   DateTime?
   lastUsedAt  DateTime?

@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateFeatureDto } from './create-feature.dto.js';
+import type { UpdateFeatureDto } from './update-feature.dto.js';
 
 export interface FeatureInfo {
   id: string;
@@ -62,6 +63,44 @@ export class FeaturesService {
       description: feature.description,
       status: feature.status,
       createdAt: feature.createdAt,
+    };
+  }
+
+  async update(
+    orgId: string,
+    projectId: string,
+    featureId: string,
+    userId: string,
+    dto: UpdateFeatureDto,
+  ): Promise<FeatureInfo> {
+    await this.verifyProjectAccess(orgId, projectId, userId);
+
+    const feature = await this.prisma.feature.findFirst({
+      where: { id: featureId, projectId },
+    });
+
+    if (!feature) {
+      throw new NotFoundException();
+    }
+
+    const updated = await this.prisma.feature.update({
+      where: { id: featureId },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.description !== undefined
+          ? { description: dto.description }
+          : {}),
+        ...(dto.status !== undefined ? { status: dto.status } : {}),
+      },
+    });
+
+    return {
+      id: updated.id,
+      projectId: updated.projectId,
+      name: updated.name,
+      description: updated.description,
+      status: updated.status,
+      createdAt: updated.createdAt,
     };
   }
 

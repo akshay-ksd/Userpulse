@@ -482,6 +482,99 @@ type FeatureInfo = {
   createdAt: string;
 };
 
+function EditFeatureForm({
+  feature: feat,
+  orgId,
+  projectId,
+  onUpdated,
+  onCancel,
+}: {
+  feature: FeatureInfo;
+  orgId: string;
+  projectId: string;
+  onUpdated: (f: FeatureInfo) => void;
+  onCancel: () => void;
+}) {
+  const [editName, setEditName] = useState(feat.name);
+  const [editDesc, setEditDesc] = useState(feat.description ?? '');
+  const [submitting, setSubmitting] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setEditError('');
+    setSubmitting(true);
+
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/features/${feat.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: editName,
+            description: editDesc || null,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setEditError(body.message ?? 'Failed to update feature.');
+        return;
+      }
+
+      const updated = (await res.json()) as FeatureInfo;
+      onUpdated(updated);
+    } catch {
+      setEditError('Network error. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-2 px-4 py-3">
+      <input
+        type="text"
+        required
+        placeholder="Feature name"
+        value={editName}
+        onChange={(e) => setEditName(e.target.value)}
+        disabled={submitting}
+        className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+      />
+      <input
+        type="text"
+        placeholder="Description (optional)"
+        value={editDesc}
+        onChange={(e) => setEditDesc(e.target.value)}
+        disabled={submitting}
+        className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+      />
+      <div className="flex gap-2 self-end">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          className="rounded-lg border border-black/[.15] px-3 py-1.5 text-sm font-medium text-black transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:hover:bg-zinc-900"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+        >
+          {submitting ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+      {editError && <p className="text-sm text-red-600 dark:text-red-400">{editError}</p>}
+    </form>
+  );
+}
+
 function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: string }) {
   const [features, setFeatures] = useState<FeatureInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -489,6 +582,8 @@ function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: strin
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [archivingId, setArchivingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -549,6 +644,42 @@ function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: strin
     }
   }
 
+  async function handleArchiveToggle(feat: FeatureInfo) {
+    const isArchiving = feat.status === 'ACTIVE';
+
+    if (
+      isArchiving &&
+      !confirm(
+        'Are you sure you want to archive this feature? It will be clearly marked as archived.',
+      )
+    ) {
+      return;
+    }
+
+    setArchivingId(feat.id);
+    setError('');
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/features/${feat.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ status: isArchiving ? 'ARCHIVED' : 'ACTIVE' }),
+        },
+      );
+
+      if (res.ok) {
+        const updated = (await res.json()) as FeatureInfo;
+        setFeatures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setArchivingId(null);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-lg font-medium text-black dark:text-zinc-50">Features</h2>
@@ -592,23 +723,73 @@ function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: strin
         </p>
       ) : (
         <div className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
-          {features.map((feat) => (
-            <div key={feat.id} className="flex items-center justify-between px-4 py-3">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm font-medium text-black dark:text-zinc-50">
-                  {feat.name}
-                </span>
-                {feat.description && (
+          {features.map((feat) =>
+            editingId === feat.id ? (
+              <EditFeatureForm
+                key={feat.id}
+                feature={feat}
+                orgId={orgId}
+                projectId={projectId}
+                onUpdated={(updated) => {
+                  setFeatures((prev) => prev.map((f) => (f.id === updated.id ? updated : f)));
+                  setEditingId(null);
+                }}
+                onCancel={() => setEditingId(null)}
+              />
+            ) : (
+              <div key={feat.id} className="flex items-center justify-between px-4 py-3">
+                <div className="flex flex-col gap-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-black dark:text-zinc-50">
+                      {feat.name}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        feat.status === 'ARCHIVED'
+                          ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                          : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                      }`}
+                    >
+                      {feat.status}
+                    </span>
+                  </div>
+                  {feat.description && (
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {feat.description}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    {feat.description}
+                    Created {new Date(feat.createdAt).toLocaleDateString()}
                   </span>
-                )}
+                  <button
+                    onClick={() => setEditingId(feat.id)}
+                    className="rounded px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleArchiveToggle(feat)}
+                    disabled={archivingId === feat.id}
+                    className={`rounded px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
+                      feat.status === 'ARCHIVED'
+                        ? 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                        : 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950'
+                    }`}
+                  >
+                    {archivingId === feat.id
+                      ? feat.status === 'ARCHIVED'
+                        ? 'Restoring…'
+                        : 'Archiving…'
+                      : feat.status === 'ARCHIVED'
+                        ? 'Restore'
+                        : 'Archive'}
+                  </button>
+                </div>
               </div>
-              <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                Created {new Date(feat.createdAt).toLocaleDateString()}
-              </span>
-            </div>
-          ))}
+            ),
+          )}
         </div>
       )}
     </div>

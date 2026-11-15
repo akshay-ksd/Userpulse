@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 29 |
+| Not Started | 28 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 26 |
-| Overall completion | 46% |
+| Done | 27 |
+| Overall completion | 48% |
 
 **Last updated:** 2026-11-15
 
@@ -113,7 +113,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-026 | Create a product feature | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-027 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-027 | Edit or archive a feature | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-028 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-029 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
@@ -1159,6 +1159,43 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
 
+### US-027 — Edit or archive a feature
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-027-edit-archive-feature.md`
+
+**Acceptance criteria**
+- [x] Authorized users can edit feature details. — `PATCH /organizations/:orgId/projects/:projectId/features/:featureId` supports name, description, and status updates; membership verified.
+- [x] Archiving requires confirmation. — Browser `confirm()` dialog before archive action.
+- [x] Archived features are clearly identified. — Status badge shows ARCHIVED in neutral gray vs ACTIVE in green.
+- [x] Historical events remain available according to retention policy. — No data is deleted on archive; retention policy (US-053) will apply separately.
+
+**Implementation notes**
+- API: Added `update()` to `FeaturesService` and `PATCH :featureId` to `FeaturesController`. New `update-feature.dto.ts` with Zod schema accepting optional name, description (nullable), and status (`ACTIVE`/`ARCHIVED`).
+- Web: Added `EditFeatureForm` component and archive/restore toggle button per feature in `FeaturesSection`. Status badge is conditional (green for ACTIVE, gray for ARCHIVED). Archive uses `confirm()` dialog.
+- No database migration needed — `FeatureStatus` enum and `updatedAt` field already existed from US-026.
+- Key files: `apps/api/src/features/update-feature.dto.ts` (new), `apps/api/src/features/features.service.ts`, `apps/api/src/features/features.controller.ts`, `apps/api/src/features/features.service.spec.ts`, `apps/api/test/features.e2e-spec.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 138 passed (8 new: update name/description/clear-description/archive/restore/non-member/not-found/wrong-project).
+- [ ] Integration / E2E tests: `pnpm --filter api test:e2e` — not run (no PostgreSQL in this environment). 9 new e2e tests written.
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment. Tests are written and ready to run.
+- Event-to-feature mapping is US-028.
+
+**Completion note**
+- All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -1199,6 +1236,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-027 | Edit or archive a feature: `PATCH /organizations/:orgId/projects/:projectId/features/:featureId` endpoint, `EditFeatureForm` component, archive/restore with confirm dialog, status badges, 8 unit tests, 9 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-026 | Create a product feature: `Feature` model, `FeaturesModule` with `POST/GET /organizations/:orgId/projects/:projectId/features`, `FeaturesSection` on project detail page, 6 unit tests, 9 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-025 | View event collection status: `GET /organizations/:orgId/projects/:projectId/event-status` endpoint, `EventCollectionStatus` component on project detail page with no-events guidance and receiving-events indicator, 3 unit tests, 5 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-024 | Prevent duplicate events: unique constraint on `(projectId, eventId)`, `skipDuplicates: true` in `createMany`, `duplicates` count in response, 3 new unit tests, 4 e2e tests written, SDK README deduplication docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |

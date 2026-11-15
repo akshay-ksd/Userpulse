@@ -232,4 +232,202 @@ describe('FeaturesController (e2e)', () => {
         .expect(404);
     });
   });
+
+  describe('PATCH /organizations/:orgId/projects/:projectId/features/:featureId', () => {
+    it('updates feature name (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects/${projectId}/features`)
+        .set('Cookie', cookie)
+        .send({ name: 'Search', description: 'Original desc' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/${createRes.body.id}`,
+        )
+        .set('Cookie', cookie)
+        .send({ name: 'Advanced Search' })
+        .expect(200);
+
+      expect(res.body.name).toBe('Advanced Search');
+      expect(res.body.description).toBe('Original desc');
+    });
+
+    it('archives a feature (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects/${projectId}/features`)
+        .set('Cookie', cookie)
+        .send({ name: 'Search' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/${createRes.body.id}`,
+        )
+        .set('Cookie', cookie)
+        .send({ status: 'ARCHIVED' })
+        .expect(200);
+
+      expect(res.body.status).toBe('ARCHIVED');
+    });
+
+    it('restores an archived feature (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects/${projectId}/features`)
+        .set('Cookie', cookie)
+        .send({ name: 'Search' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/${createRes.body.id}`,
+        )
+        .set('Cookie', cookie)
+        .send({ status: 'ARCHIVED' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/${createRes.body.id}`,
+        )
+        .set('Cookie', cookie)
+        .send({ status: 'ACTIVE' })
+        .expect(200);
+
+      expect(res.body.status).toBe('ACTIVE');
+    });
+
+    it('clears description with null (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects/${projectId}/features`)
+        .set('Cookie', cookie)
+        .send({ name: 'Search', description: 'Has description' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/${createRes.body.id}`,
+        )
+        .set('Cookie', cookie)
+        .send({ description: null })
+        .expect(200);
+
+      expect(res.body.description).toBeNull();
+    });
+
+    it('archived feature is visible in list with status (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects/${projectId}/features`)
+        .set('Cookie', cookie)
+        .send({ name: 'Search' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/${createRes.body.id}`,
+        )
+        .set('Cookie', cookie)
+        .send({ status: 'ARCHIVED' })
+        .expect(200);
+
+      const listRes = await request(app.getHttpServer())
+        .get(`/organizations/${orgId}/projects/${projectId}/features`)
+        .set('Cookie', cookie)
+        .expect(200);
+
+      expect(listRes.body).toHaveLength(1);
+      expect(listRes.body[0].status).toBe('ARCHIVED');
+    });
+
+    it('rejects unauthenticated (401)', async () => {
+      await request(app.getHttpServer())
+        .patch('/organizations/org-1/projects/proj-1/features/feat-1')
+        .send({ name: 'X' })
+        .expect(401);
+    });
+
+    it('rejects non-member (404)', async () => {
+      const cookie1 = await registerAndSignIn(
+        'owner@example.com',
+        'password1',
+        'Owner',
+      );
+      const orgId = await createOrg(cookie1);
+      const projectId = await createProject(cookie1, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects/${projectId}/features`)
+        .set('Cookie', cookie1)
+        .send({ name: 'Search' })
+        .expect(201);
+
+      const cookie2 = await registerAndSignIn(
+        'other@example.com',
+        'password1',
+        'Other',
+      );
+
+      await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/${createRes.body.id}`,
+        )
+        .set('Cookie', cookie2)
+        .send({ name: 'Hacked' })
+        .expect(404);
+    });
+
+    it('rejects non-existent feature (404)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/non-existent-id`,
+        )
+        .set('Cookie', cookie)
+        .send({ name: 'X' })
+        .expect(404);
+    });
+
+    it('rejects empty name (400)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects/${projectId}/features`)
+        .set('Cookie', cookie)
+        .send({ name: 'Search' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(
+          `/organizations/${orgId}/projects/${projectId}/features/${createRes.body.id}`,
+        )
+        .set('Cookie', cookie)
+        .send({ name: '' })
+        .expect(400);
+    });
+  });
 });

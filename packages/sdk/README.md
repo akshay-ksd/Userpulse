@@ -91,6 +91,25 @@ After calling `identify()`, all subsequent `track()` events include the `userId`
 
 If called before `init()`, with an invalid userId, or if an unexpected error occurs, the call is silently ignored. Enable `debug: true` to see warnings.
 
+### `page(name?: string, properties?: Record<string, unknown>): void`
+
+Record a page or screen view.
+
+```typescript
+import { page } from '@userpulse/sdk';
+
+page('Settings', { path: '/settings', section: 'billing' });
+```
+
+- `name` — Optional page or screen name (e.g. `"Home"`, `"Settings"`, `"User Profile"`).
+- `properties` — Optional structured data. If `path` is provided, it is extracted to a top-level `pagePath` field for consistent querying.
+
+Each page event is created with `eventName: '$page'` and follows the standard event contract (`eventId`, `timestamp`, `anonymousId`, `sdkVersion`). If an identity has been set via `identify()`, the `userId` is included.
+
+**Privacy:** The SDK does not automatically collect the browser URL, query parameters, referrer, or page content. Only the data you explicitly pass is recorded.
+
+If called before `init()` or when the queue is full, the call is silently ignored. Enable `debug: true` to see warnings.
+
 ### `getClient(): UserpulseInstance`
 
 Returns the current SDK instance. Throws if `init()` has not been called.

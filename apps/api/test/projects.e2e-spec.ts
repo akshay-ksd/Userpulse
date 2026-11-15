@@ -26,6 +26,7 @@ describe('ProjectsController (e2e)', () => {
   });
 
   beforeEach(async () => {
+    await prisma.event.deleteMany();
     await prisma.projectApiKey.deleteMany();
     await prisma.project.deleteMany();
     await prisma.organizationInvitation.deleteMany();
@@ -435,6 +436,123 @@ describe('ProjectsController (e2e)', () => {
         .patch('/organizations/some-id/projects/some-project')
         .send({ name: 'X' })
         .expect(401);
+    });
+  });
+
+  describe('GET /organizations/:orgId/projects/:projectId/event-status', () => {
+    it('returns zero events for empty project (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .send({ name: 'Empty Project' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get(
+          `/organizations/${orgId}/projects/${createRes.body.id}/event-status`,
+        )
+        .set('Cookie', cookie)
+        .expect(200);
+
+      expect(res.body).toEqual({
+        totalEvents: 0,
+        latestEventAt: null,
+        earliestEventAt: null,
+      });
+    });
+
+    it('returns event counts and timestamps when events exist (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .send({ name: 'Active Project' })
+        .expect(201);
+
+      const projectId = createRes.body.id;
+
+      await prisma.event.createMany({
+        data: [
+          {
+            organizationId: orgId,
+            projectId,
+            eventId: 'evt-1',
+            eventName: 'click',
+            eventTimestamp: new Date('2026-11-15T08:00:00Z'),
+            validationStatus: 'VALID',
+            processingStatus: 'PENDING',
+          },
+          {
+            organizationId: orgId,
+            projectId,
+            eventId: 'evt-2',
+            eventName: 'page_view',
+            eventTimestamp: new Date('2026-11-15T09:00:00Z'),
+            validationStatus: 'VALID',
+            processingStatus: 'PROCESSED',
+          },
+          {
+            organizationId: orgId,
+            projectId,
+            eventId: 'evt-3',
+            eventName: 'bad_event',
+            eventTimestamp: new Date('2026-11-15T09:30:00Z'),
+            validationStatus: 'REJECTED',
+            validationError: 'Invalid event name',
+            processingStatus: 'REJECTED',
+          },
+        ],
+      });
+
+      const res = await request(app.getHttpServer())
+        .get(`/organizations/${orgId}/projects/${projectId}/event-status`)
+        .set('Cookie', cookie)
+        .expect(200);
+
+      expect(res.body.totalEvents).toBe(2);
+      expect(res.body.latestEventAt).toBeTruthy();
+      expect(res.body.earliestEventAt).toBeTruthy();
+    });
+
+    it('rejects unauthenticated (401)', async () => {
+      await request(app.getHttpServer())
+        .get('/organizations/some-id/projects/some-project/event-status')
+        .expect(401);
+    });
+
+    it('rejects non-member (404)', async () => {
+      const cookie1 = await registerAndSignIn('user1@example.com');
+      const orgId = await createOrg(cookie1);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie1)
+        .send({ name: 'My App' })
+        .expect(201);
+
+      const cookie2 = await registerAndSignIn('user2@example.com');
+
+      await request(app.getHttpServer())
+        .get(
+          `/organizations/${orgId}/projects/${createRes.body.id}/event-status`,
+        )
+        .set('Cookie', cookie2)
+        .expect(404);
+    });
+
+    it('returns 404 for non-existent project', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      await request(app.getHttpServer())
+        .get(`/organizations/${orgId}/projects/non-existent-id/event-status`)
+        .set('Cookie', cookie)
+        .expect(404);
     });
   });
 });

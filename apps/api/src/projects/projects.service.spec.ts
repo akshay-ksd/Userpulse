@@ -14,6 +14,9 @@ function mockPrisma() {
       findFirst: vi.fn(),
       update: vi.fn(),
     },
+    event: {
+      aggregate: vi.fn(),
+    },
   } as unknown as PrismaService;
 }
 
@@ -239,6 +242,79 @@ describe('ProjectsService', () => {
 
       await expect(
         service.update('org-1', 'proj-999', 'user-1', { name: 'X' }),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getEventStatus', () => {
+    it('returns event count and timestamps for project with events', async () => {
+      const prisma = mockPrisma();
+      const service = new ProjectsService(prisma);
+      const latestDate = new Date('2026-11-15T10:00:00Z');
+      const earliestDate = new Date('2026-11-14T08:00:00Z');
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (prisma.event.aggregate as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _count: 42,
+        _max: { ingestedAt: latestDate },
+        _min: { ingestedAt: earliestDate },
+      });
+
+      const result = await service.getEventStatus('org-1', 'proj-1', 'user-1');
+
+      expect(result).toEqual({
+        totalEvents: 42,
+        latestEventAt: latestDate,
+        earliestEventAt: earliestDate,
+      });
+      expect(prisma.event.aggregate).toHaveBeenCalledWith({
+        where: { projectId: 'proj-1', validationStatus: 'VALID' },
+        _count: true,
+        _max: { ingestedAt: true },
+        _min: { ingestedAt: true },
+      });
+    });
+
+    it('returns zero count and null timestamps for project with no events', async () => {
+      const prisma = mockPrisma();
+      const service = new ProjectsService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (prisma.event.aggregate as ReturnType<typeof vi.fn>).mockResolvedValue({
+        _count: 0,
+        _max: { ingestedAt: null },
+        _min: { ingestedAt: null },
+      });
+
+      const result = await service.getEventStatus('org-1', 'proj-1', 'user-1');
+
+      expect(result).toEqual({
+        totalEvents: 0,
+        latestEventAt: null,
+        earliestEventAt: null,
+      });
+    });
+
+    it('throws NotFoundException for non-member', async () => {
+      const prisma = mockPrisma();
+      const service = new ProjectsService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.getEventStatus('org-1', 'proj-1', 'user-2'),
       ).rejects.toThrow(NotFoundException);
     });
   });

@@ -17,7 +17,11 @@ import {
   updateProjectSchema,
   type UpdateProjectDto,
 } from './update-project.dto.js';
-import { ProjectsService, type ProjectInfo } from './projects.service.js';
+import {
+  ProjectsService,
+  type ProjectInfo,
+  type EventStatusInfo,
+} from './projects.service.js';
 
 @Controller('organizations/:orgId/projects')
 export class ProjectsController {
@@ -58,5 +62,14 @@ export class ProjectsController {
     @Body({ schema: updateProjectSchema }) dto: UpdateProjectDto,
   ): Promise<ProjectInfo> {
     return this.projectsService.update(orgId, projectId, user.id, dto);
+  }
+
+  @Get(':projectId/event-status')
+  getEventStatus(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+  ): Promise<EventStatusInfo> {
+    return this.projectsService.getEventStatus(orgId, projectId, user.id);
   }
 }

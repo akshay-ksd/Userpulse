@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 31 |
+| Not Started | 30 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 24 |
-| Overall completion | 43% |
+| Done | 25 |
+| Overall completion | 45% |
 
 **Last updated:** 2026-11-15
 
@@ -106,7 +106,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-022 | Validate and normalize events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-023 | Process queued events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-024 | Prevent duplicate events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-025 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-025 | View event collection status | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 
 ### EP-06 Feature Management
 
@@ -1084,6 +1084,43 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
 
+### US-025 — View event collection status
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-025-view-event-collection-status.md`
+
+**Acceptance criteria**
+- [x] Project view indicates whether event activity has been received. — `EventCollectionStatus` component shows green "Receiving events" indicator when events exist.
+- [x] Latest received event time is displayed when available. — Relative time format ("X minutes/hours/days ago") shown for latest event.
+- [x] Projects with no events show setup guidance. — "No events received yet" with guidance to generate credentials and integrate the SDK.
+- [x] The UI does not claim that queue acceptance means analytical persistence. — Uses "events received" language, not "events processed" or "events stored".
+
+**Implementation notes**
+- API: Added `getEventStatus()` to `ProjectsService` using `prisma.event.aggregate()` with `_count`, `_max(ingestedAt)`, `_min(ingestedAt)` filtered by `validationStatus: 'VALID'`. Added `GET :projectId/event-status` to `ProjectsController`.
+- Web: Added `EventCollectionStatus` component to project detail page with loading/error/no-events/receiving-events states. Added `formatRelativeTime()` helper for human-readable relative timestamps.
+- No database migration needed — uses existing `Event` table and `(projectId, validationStatus)` index.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 124 passed (3 new: getEventStatus with events, no events, non-member).
+- [ ] Integration / E2E tests: `pnpm --filter api test:e2e` — not run (no PostgreSQL in this environment). 5 new e2e tests written (empty project 200, events exist 200, unauthenticated 401, non-member 404, non-existent 404).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment. Tests are written and ready to run.
+- No auto-refresh or real-time updates — page load only.
+- Event count includes all valid events (PENDING + PROCESSED + FAILED), not just analytically persisted events.
+
+**Completion note**
+- All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -1124,6 +1161,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-025 | View event collection status: `GET /organizations/:orgId/projects/:projectId/event-status` endpoint, `EventCollectionStatus` component on project detail page with no-events guidance and receiving-events indicator, 3 unit tests, 5 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-024 | Prevent duplicate events: unique constraint on `(projectId, eventId)`, `skipDuplicates: true` in `createMany`, `duplicates` count in response, 3 new unit tests, 4 e2e tests written, SDK README deduplication docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-023 | Process queued events: `EventProcessorModule` with `@nestjs/schedule` background processing, `processingStatus` enum (PENDING/PROCESSED/FAILED/DLQ) replacing boolean `processed`, retry with backoff and DLQ, `GET /internal/metrics/processing` endpoint, `FOR UPDATE SKIP LOCKED` concurrency safety, 8 unit tests, 4 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-022 | Validate and normalize events: `EventValidationService` with per-event normalization (trimming, timestamp range, property size/depth limits, tenant ID stripping), `validationStatus`/`validationError` fields on Event model, updated `IngestionService` for partial rejection, 12 validation unit tests, 6 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |

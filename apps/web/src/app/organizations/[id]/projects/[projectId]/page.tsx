@@ -370,6 +370,109 @@ function TrackingCredentials({ orgId, projectId }: { orgId: string; projectId: s
   );
 }
 
+function formatRelativeTime(dateStr: string): string {
+  const now = Date.now();
+  const then = new Date(dateStr).getTime();
+  const diffMs = now - then;
+
+  const seconds = Math.floor(diffMs / 1000);
+  if (seconds < 60) return 'just now';
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? '' : 's'} ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+type EventStatus = {
+  totalEvents: number;
+  latestEventAt: string | null;
+  earliestEventAt: string | null;
+};
+
+function EventCollectionStatus({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [status, setStatus] = useState<'loading' | 'error' | 'ready'>('loading');
+  const [data, setData] = useState<EventStatus | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/event-status`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setData(await res.json());
+          setStatus('ready');
+        } else {
+          setStatus('error');
+        }
+      } catch {
+        if (!cancelled) setStatus('error');
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Event collection</h2>
+
+      {status === 'loading' && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading event status…</p>
+      )}
+
+      {status === 'error' && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Could not load event status.</p>
+      )}
+
+      {status === 'ready' && data && data.totalEvents === 0 && (
+        <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+          <p className="text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            No events received yet
+          </p>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+            Generate a tracking credential above and integrate the Userpulse SDK to start sending
+            events.
+          </p>
+        </div>
+      )}
+
+      {status === 'ready' && data && data.totalEvents > 0 && (
+        <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+            <span className="text-sm font-medium text-green-700 dark:text-green-400">
+              Receiving events
+            </span>
+          </div>
+          <div className="mt-2 flex flex-col gap-1">
+            <p className="text-sm text-zinc-600 dark:text-zinc-400">
+              Total events received: {data.totalEvents.toLocaleString()}
+            </p>
+            {data.latestEventAt && (
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                Latest event: {formatRelativeTime(data.latestEventAt)}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectDetail() {
   const { id: orgId, projectId } = useParams<{ id: string; projectId: string }>();
   const router = useRouter();
@@ -567,6 +670,10 @@ function ProjectDetail() {
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
       <TrackingCredentials orgId={orgId} projectId={project.id} />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <EventCollectionStatus orgId={orgId} projectId={project.id} />
 
       <p className="text-sm text-zinc-500 dark:text-zinc-500">
         Created {new Date(project.createdAt).toLocaleDateString()}

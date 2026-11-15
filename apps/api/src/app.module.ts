@@ -8,6 +8,7 @@ import { MeController } from './me/me.controller.js';
 import { OrganizationsModule } from './organizations/organizations.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { ApiKeysModule } from './api-keys/api-keys.module.js';
+import { FeaturesModule } from './features/features.module.js';
 import { IngestionModule } from './ingestion/ingestion.module.js';
 import { EventProcessorModule } from './event-processor/event-processor.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
@@ -30,6 +31,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
     OrganizationsModule,
     ProjectsModule,
     ApiKeysModule,
+    FeaturesModule,
     IngestionModule,
     EventProcessorModule,
   ],

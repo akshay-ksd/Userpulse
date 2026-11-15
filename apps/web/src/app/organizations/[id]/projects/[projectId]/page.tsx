@@ -473,6 +473,148 @@ function EventCollectionStatus({ orgId, projectId }: { orgId: string; projectId:
   );
 }
 
+type FeatureInfo = {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string | null;
+  status: string;
+  createdAt: string;
+};
+
+function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [features, setFeatures] = useState<FeatureInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/features`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setFeatures(await res.json());
+        }
+      } catch {
+        if (!cancelled) setError('Failed to load features.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setCreating(true);
+
+    try {
+      const res = await fetch(`${API_URL}/organizations/${orgId}/projects/${projectId}/features`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          name,
+          ...(description ? { description } : {}),
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to create feature.');
+        return;
+      }
+
+      const created = (await res.json()) as FeatureInfo;
+      setFeatures((prev) => [created, ...prev]);
+      setName('');
+      setDescription('');
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Features</h2>
+
+      <form onSubmit={handleCreate} className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            required
+            placeholder="Feature name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={creating}
+            className="flex-1 rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+          />
+          <button
+            type="submit"
+            disabled={creating}
+            className="shrink-0 rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+          >
+            {creating ? 'Creating…' : 'Create'}
+          </button>
+        </div>
+        <input
+          type="text"
+          placeholder="Description (optional)"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          disabled={creating}
+          className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+        />
+      </form>
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {loading ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading features…</p>
+      ) : features.length === 0 ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          No features yet. Create one to start organizing your product analytics.
+        </p>
+      ) : (
+        <div className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
+          {features.map((feat) => (
+            <div key={feat.id} className="flex items-center justify-between px-4 py-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium text-black dark:text-zinc-50">
+                  {feat.name}
+                </span>
+                {feat.description && (
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {feat.description}
+                  </span>
+                )}
+              </div>
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                Created {new Date(feat.createdAt).toLocaleDateString()}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectDetail() {
   const { id: orgId, projectId } = useParams<{ id: string; projectId: string }>();
   const router = useRouter();
@@ -674,6 +816,10 @@ function ProjectDetail() {
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
       <EventCollectionStatus orgId={orgId} projectId={project.id} />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <FeaturesSection orgId={orgId} projectId={project.id} />
 
       <p className="text-sm text-zinc-500 dark:text-zinc-500">
         Created {new Date(project.createdAt).toLocaleDateString()}

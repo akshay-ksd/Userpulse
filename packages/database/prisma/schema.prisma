@@ -129,6 +129,7 @@ model Project {
 
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   apiKeys      ProjectApiKey[]
+  features     Feature[]
 
   @@index([organizationId])
   @@map("projects")
@@ -150,6 +151,26 @@ model ProjectApiKey {
 
   @@index([projectId])
   @@map("project_api_keys")
+}
+
+enum FeatureStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Feature {
+  id          String        @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  status      FeatureStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("features")
 }
 
 model Event {

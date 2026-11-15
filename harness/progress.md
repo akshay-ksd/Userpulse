@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 30 |
+| Not Started | 29 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 25 |
-| Overall completion | 45% |
+| Done | 26 |
+| Overall completion | 46% |
 
 **Last updated:** 2026-11-15
 
@@ -112,7 +112,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-026 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-026 | Create a product feature | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-027 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-028 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-029 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1121,6 +1121,44 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
 
+### US-026 — Create a product feature
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-026-create-product-feature.md`
+
+**Acceptance criteria**
+- [x] An authorized user can create a feature with a name and description. — `POST /organizations/:orgId/projects/:projectId/features` (201) with name and optional description.
+- [x] The feature belongs to the selected project. — Feature stored with `projectId`; scoped to org via membership check.
+- [x] Empty names are rejected. — Zod schema enforces `min(1)` after trimming; 400 for empty name.
+- [x] The feature appears in the feature list. — `GET /organizations/:orgId/projects/:projectId/features` returns features; `FeaturesSection` component on project detail page.
+
+**Implementation notes**
+- Database: `Feature` model with `FeatureStatus` enum (ACTIVE/ARCHIVED). Migration `20261115180000_add_features_table`. Added `features` relation to `Project` model.
+- API: New `FeaturesModule` with `FeaturesService` and `FeaturesController`. Two endpoints: `POST` (201, create) and `GET` (list). Both verify org membership and project existence.
+- Web: `FeaturesSection` component on project detail page with create form, feature list, empty state, loading/error handling.
+- Key files: `apps/api/src/features/` (all new), `packages/database/prisma/schema.prisma`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`, `apps/api/src/app.module.ts`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 130 passed (6 new: create happy/non-member/missing-project, findByProject happy/empty/non-member).
+- [ ] Integration / E2E tests: `pnpm --filter api test:e2e` — not run (no PostgreSQL in this environment). 9 new e2e tests written.
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment. Tests are written and ready to run.
+- Edit/archive features is US-027.
+- Event-to-feature mapping is US-028.
+
+**Completion note**
+- All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -1161,6 +1199,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-026 | Create a product feature: `Feature` model, `FeaturesModule` with `POST/GET /organizations/:orgId/projects/:projectId/features`, `FeaturesSection` on project detail page, 6 unit tests, 9 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-025 | View event collection status: `GET /organizations/:orgId/projects/:projectId/event-status` endpoint, `EventCollectionStatus` component on project detail page with no-events guidance and receiving-events indicator, 3 unit tests, 5 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-024 | Prevent duplicate events: unique constraint on `(projectId, eventId)`, `skipDuplicates: true` in `createMany`, `duplicates` count in response, 3 new unit tests, 4 e2e tests written, SDK README deduplication docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-023 | Process queued events: `EventProcessorModule` with `@nestjs/schedule` background processing, `processingStatus` enum (PENDING/PROCESSED/FAILED/DLQ) replacing boolean `processed`, retry with backoff and DLQ, `GET /internal/metrics/processing` endpoint, `FOR UPDATE SKIP LOCKED` concurrency safety, 8 unit tests, 4 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |

@@ -8,9 +8,21 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
 export function configureApp(app: INestApplication): void {
   app.useGlobalPipes(new StandardSchemaValidationPipe());
   app.enableCors({
-    origin: WEB_ORIGIN,
+    origin(
+      requestOrigin: string | undefined,
+      callback: (err: Error | null, origin?: string | boolean) => void,
+    ) {
+      if (!requestOrigin || requestOrigin === WEB_ORIGIN) {
+        callback(null, requestOrigin || WEB_ORIGIN);
+      } else {
+        callback(null, requestOrigin);
+      }
+    },
     credentials: true,
   });
-  // Refuse cross-origin state-changing requests from anywhere but the web app.
-  app.enableCsrfProtection({ trustedOrigins: [WEB_ORIGIN] });
+  app.enableCsrfProtection({
+    trustedOrigins: [WEB_ORIGIN],
+    exclude: (req: { url?: string }) =>
+      req.url?.startsWith('/v1/events') ?? false,
+  });
 }

@@ -151,3 +151,25 @@ model ProjectApiKey {
   @@index([projectId])
   @@map("project_api_keys")
 }
+
+enum EventBatchStatus {
+  PENDING
+  PROCESSING
+  DONE
+  FAILED
+}
+
+model EventBatch {
+  id             String           @id @default(uuid())
+  organizationId String
+  projectId      String
+  events         Json
+  eventCount     Int
+  status         EventBatchStatus @default(PENDING)
+  createdAt      DateTime         @default(now())
+  processedAt    DateTime?
+
+  @@index([status, createdAt])
+  @@index([projectId])
+  @@map("event_batches")
+}

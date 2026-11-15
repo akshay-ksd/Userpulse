@@ -174,7 +174,7 @@ model Event {
   @@index([projectId, ingestedAt])
   @@index([processingStatus, ingestedAt])
   @@index([processingStatus, retryCount])
-  @@index([eventId])
+  @@unique([projectId, eventId])
   @@index([projectId, validationStatus])
   @@map("events")
 }

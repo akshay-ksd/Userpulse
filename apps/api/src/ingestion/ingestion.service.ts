@@ -7,6 +7,7 @@ import type { EventDto } from './submit-events.dto.js';
 export interface BatchResult {
   accepted: number;
   rejected: number;
+  duplicates: number;
   errors?: Array<{ index: number; error: string }>;
 }
 
@@ -64,18 +65,32 @@ export class IngestionService {
       }
     }
 
-    const promises: Promise<unknown>[] = [];
+    let insertedCount = 0;
     if (validData.length > 0) {
-      promises.push(this.prisma.event.createMany({ data: validData }));
+      const result = await this.prisma.event.createMany({
+        data: validData,
+        skipDuplicates: true,
+      });
+      insertedCount = result.count;
     }
     if (rejectedData.length > 0) {
-      promises.push(this.prisma.event.createMany({ data: rejectedData }));
+      await this.prisma.event.createMany({
+        data: rejectedData,
+        skipDuplicates: true,
+      });
     }
-    await Promise.all(promises);
+
+    const duplicates = validData.length - insertedCount;
 
     if (rejectedData.length > 0) {
       this.logger.warn(
         `Event validation: ${rejectedData.length} rejected in batch for project ${projectId}`,
+      );
+    }
+
+    if (duplicates > 0) {
+      this.logger.debug(
+        `Event deduplication: ${duplicates} duplicate(s) skipped in batch for project ${projectId}`,
       );
     }
 
@@ -87,8 +102,9 @@ export class IngestionService {
       .catch(() => {});
 
     return {
-      accepted: validData.length,
+      accepted: insertedCount,
       rejected: rejectedData.length,
+      duplicates,
       ...(errors.length > 0 ? { errors } : {}),
     };
   }

@@ -396,6 +396,121 @@ describe('IngestionController (e2e)', () => {
       expect(res.body.errors[0].error).toContain('maximum size');
     });
 
+    it('deduplicates events submitted twice with the same eventId (202)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+      const apiKey = await createApiKey(cookie, orgId, projectId);
+
+      const event = makeEvent();
+
+      const res1 = await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ batch: [event] })
+        .expect(202);
+
+      expect(res1.body.accepted).toBe(1);
+      expect(res1.body.duplicates).toBe(0);
+
+      const res2 = await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ batch: [event] })
+        .expect(202);
+
+      expect(res2.body.accepted).toBe(0);
+      expect(res2.body.duplicates).toBe(1);
+
+      const stored = await prisma.event.findMany();
+      expect(stored).toHaveLength(1);
+    });
+
+    it('deduplicates events within the same batch', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+      const apiKey = await createApiKey(cookie, orgId, projectId);
+
+      const eventId = crypto.randomUUID();
+      const event1 = makeEvent({ eventId });
+      const event2 = makeEvent({ eventId });
+      const event3 = makeEvent();
+
+      const res = await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ batch: [event1, event2, event3] })
+        .expect(202);
+
+      expect(res.body.accepted).toBe(2);
+      expect(res.body.duplicates).toBe(1);
+
+      const stored = await prisma.event.findMany();
+      expect(stored).toHaveLength(2);
+    });
+
+    it('allows the same eventId in different projects', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId1 = await createProject(cookie, orgId, 'App 1');
+      const projectId2 = await createProject(cookie, orgId, 'App 2');
+      const apiKey1 = await createApiKey(cookie, orgId, projectId1, 'Key 1');
+      const apiKey2 = await createApiKey(cookie, orgId, projectId2, 'Key 2');
+
+      const sharedEventId = crypto.randomUUID();
+      const event = makeEvent({ eventId: sharedEventId });
+
+      await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey1}`)
+        .send({ batch: [event] })
+        .expect(202);
+
+      const res = await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey2}`)
+        .send({ batch: [event] })
+        .expect(202);
+
+      expect(res.body.accepted).toBe(1);
+      expect(res.body.duplicates).toBe(0);
+
+      const stored = await prisma.event.findMany();
+      expect(stored).toHaveLength(2);
+    });
+
+    it('deduplicates even after event is already processed', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+      const apiKey = await createApiKey(cookie, orgId, projectId);
+
+      const event = makeEvent();
+
+      await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ batch: [event] })
+        .expect(202);
+
+      await prisma.event.updateMany({
+        data: { processingStatus: 'PROCESSED', processedAt: new Date() },
+      });
+
+      const res = await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ batch: [event] })
+        .expect(202);
+
+      expect(res.body.accepted).toBe(0);
+      expect(res.body.duplicates).toBe(1);
+
+      const stored = await prisma.event.findMany();
+      expect(stored).toHaveLength(1);
+    });
+
     it('stores rejected events with REJECTED validationStatus', async () => {
       const cookie = await registerAndSignIn();
       const orgId = await createOrg(cookie);

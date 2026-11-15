@@ -35,7 +35,11 @@ describe('IngestionService', () => {
   }
 
   it('accepts a valid batch and returns the count', async () => {
-    const { service, prisma } = createService();
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 2,
+    });
+    const { service } = createService(prisma);
     const batch = [
       makeEvent(),
       makeEvent({ eventId: '550e8400-e29b-41d4-a716-446655440001' }),
@@ -45,11 +49,16 @@ describe('IngestionService', () => {
 
     expect(result.accepted).toBe(2);
     expect(result.rejected).toBe(0);
+    expect(result.duplicates).toBe(0);
     expect(prisma.event.createMany).toHaveBeenCalled();
   });
 
   it('inserts events with correct org and project context', async () => {
-    const { service, prisma } = createService();
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+    });
+    const { service } = createService(prisma);
     const batch = [
       makeEvent({ userId: 'user-42', properties: { page: '/home' } }),
     ];
@@ -70,8 +79,62 @@ describe('IngestionService', () => {
     expect(inserted.processingStatus).toBe('PENDING');
   });
 
+  it('passes skipDuplicates: true to createMany', async () => {
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+    });
+    const { service } = createService(prisma);
+
+    await service.submitBatch('org-1', 'proj-1', 'key-1', [makeEvent()]);
+
+    expect(prisma.event.createMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skipDuplicates: true }),
+    );
+  });
+
+  it('reports duplicates when createMany inserts fewer than submitted', async () => {
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+    });
+    const { service } = createService(prisma);
+    const batch = [
+      makeEvent(),
+      makeEvent({ eventId: '550e8400-e29b-41d4-a716-446655440001' }),
+      makeEvent({ eventId: '550e8400-e29b-41d4-a716-446655440002' }),
+    ];
+
+    const result = await service.submitBatch('org-1', 'proj-1', 'key-1', batch);
+
+    expect(result.accepted).toBe(1);
+    expect(result.duplicates).toBe(2);
+    expect(result.rejected).toBe(0);
+  });
+
+  it('returns zero duplicates when all events are new', async () => {
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 2,
+    });
+    const { service } = createService(prisma);
+    const batch = [
+      makeEvent(),
+      makeEvent({ eventId: '550e8400-e29b-41d4-a716-446655440001' }),
+    ];
+
+    const result = await service.submitBatch('org-1', 'proj-1', 'key-1', batch);
+
+    expect(result.accepted).toBe(2);
+    expect(result.duplicates).toBe(0);
+  });
+
   it('updates lastUsedAt on the API key', async () => {
-    const { service, prisma } = createService();
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+    });
+    const { service } = createService(prisma);
 
     await service.submitBatch('org-1', 'proj-1', 'key-1', [makeEvent()]);
 
@@ -85,6 +148,9 @@ describe('IngestionService', () => {
 
   it('does not fail if lastUsedAt update fails', async () => {
     const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+    });
     (prisma.projectApiKey.update as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('DB error'),
     );
@@ -96,10 +162,15 @@ describe('IngestionService', () => {
 
     expect(result.accepted).toBe(1);
     expect(result.rejected).toBe(0);
+    expect(result.duplicates).toBe(0);
   });
 
   it('handles optional fields as null when not provided', async () => {
-    const { service, prisma } = createService();
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+    });
+    const { service } = createService(prisma);
     const batch = [
       makeEvent({
         anonymousId: undefined,
@@ -121,7 +192,11 @@ describe('IngestionService', () => {
   });
 
   it('rejects invalid events and accepts valid ones in the same batch', async () => {
-    const { service, prisma } = createService();
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+    });
+    const { service } = createService(prisma);
     const batch = [
       makeEvent(),
       makeEvent({
@@ -156,7 +231,11 @@ describe('IngestionService', () => {
   });
 
   it('strips tenant IDs from properties', async () => {
-    const { service, prisma } = createService();
+    const prisma = mockPrisma();
+    (prisma.event.createMany as ReturnType<typeof vi.fn>).mockResolvedValue({
+      count: 1,
+    });
+    const { service } = createService(prisma);
     const batch = [
       makeEvent({
         properties: {

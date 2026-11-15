@@ -193,3 +193,15 @@ Events are buffered in memory and sent to the server in batches:
 - **Network failures:** If a flush fails (network error or non-2xx response), events are returned to the queue and retried on the next flush. Failures never throw or block the application.
 - **Explicit flush:** Call `flush()` to send events immediately.
 - **Cleanup:** Call `destroy()` to stop the timer and send remaining events.
+
+## Event deduplication
+
+Each event is assigned a unique `eventId` (UUID) when `track()` or `page()` is called. If a flush fails and the events are retried, the same `eventId` is resent. The server deduplicates by `(projectId, eventId)` — duplicate submissions are silently skipped and do not inflate metrics.
+
+**Guarantees:**
+- Each `eventId` is stored at most once per project.
+- Retries from network failures do not create duplicate events.
+
+**Limitations:**
+- `eventId` is generated in memory. If the SDK is re-initialized (e.g., full page reload) before events are flushed, unflushed events are lost and new UUIDs are generated for subsequent events.
+- Deduplication is scoped to a single project. The same `eventId` in different projects is treated as distinct events.

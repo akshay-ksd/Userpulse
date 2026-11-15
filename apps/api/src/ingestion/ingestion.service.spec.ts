@@ -67,6 +67,7 @@ describe('IngestionService', () => {
     expect(inserted.properties).toEqual({ page: '/home' });
     expect(inserted.eventTimestamp).toBeInstanceOf(Date);
     expect(inserted.validationStatus).toBe('VALID');
+    expect(inserted.processingStatus).toBe('PENDING');
   });
 
   it('updates lastUsedAt on the API key', async () => {
@@ -185,5 +186,6 @@ describe('IngestionService', () => {
     const inserted = call.data[0];
     expect(inserted.validationStatus).toBe('REJECTED');
     expect(inserted.validationError).toContain('eventName');
+    expect(inserted.processingStatus).toBe('REJECTED');
   });
 });

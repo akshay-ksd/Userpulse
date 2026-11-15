@@ -153,23 +153,27 @@ model ProjectApiKey {
 }
 
 model Event {
-  id             String   @id @default(uuid())
-  organizationId String
-  projectId      String
-  eventId        String
-  eventName      String
-  anonymousId    String?
-  userId         String?
-  properties     Json?
-  sdkVersion     String?
-  eventTimestamp  DateTime @db.Timestamptz(6)
-  ingestedAt     DateTime @default(now()) @db.Timestamptz(6)
-  processed        Boolean  @default(false)
-  validationStatus String   @default("VALID")
+  id               String    @id @default(uuid())
+  organizationId   String
+  projectId        String
+  eventId          String
+  eventName        String
+  anonymousId      String?
+  userId           String?
+  properties       Json?
+  sdkVersion       String?
+  eventTimestamp   DateTime  @db.Timestamptz(6)
+  ingestedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  processingStatus String    @default("PENDING")
+  retryCount       Int       @default(0)
+  processedAt      DateTime? @db.Timestamptz(6)
+  processingError  String?
+  validationStatus String    @default("VALID")
   validationError  String?
 
   @@index([projectId, ingestedAt])
-  @@index([processed, ingestedAt])
+  @@index([processingStatus, ingestedAt])
+  @@index([processingStatus, retryCount])
   @@index([eventId])
   @@index([projectId, validationStatus])
   @@map("events")

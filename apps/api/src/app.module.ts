@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthenticationModule } from '@nestjs/authentication';
+import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -8,6 +9,7 @@ import { OrganizationsModule } from './organizations/organizations.module.js';
 import { ProjectsModule } from './projects/projects.module.js';
 import { ApiKeysModule } from './api-keys/api-keys.module.js';
 import { IngestionModule } from './ingestion/ingestion.module.js';
+import { EventProcessorModule } from './event-processor/event-processor.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
@@ -22,12 +24,14 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
         trustedOrigins: [WEB_ORIGIN],
       },
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     OrganizationsModule,
     ProjectsModule,
     ApiKeysModule,
     IngestionModule,
+    EventProcessorModule,
   ],
   controllers: [AppController, MeController],
   providers: [AppService],

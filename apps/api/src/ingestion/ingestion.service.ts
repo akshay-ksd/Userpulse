@@ -48,12 +48,17 @@ export class IngestionService {
       };
 
       if (result.status === 'VALID') {
-        validData.push({ ...base, validationStatus: 'VALID' });
+        validData.push({
+          ...base,
+          validationStatus: 'VALID',
+          processingStatus: 'PENDING',
+        });
       } else {
         rejectedData.push({
           ...base,
           validationStatus: 'REJECTED',
           validationError: result.error ?? null,
+          processingStatus: 'REJECTED',
         });
         errors.push({ index: i, error: result.error! });
       }

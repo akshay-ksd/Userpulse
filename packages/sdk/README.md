@@ -31,6 +31,7 @@ The API key is generated from your project settings page. See [Generate a tracki
 | `flushInterval` | `number` | `30000` | Interval in milliseconds between automatic event flushes. |
 | `maxQueueSize` | `number` | `100` | Maximum number of events to buffer before flushing. |
 | `debug` | `boolean` | `false` | Enable debug logging to the console. |
+| `trackingEnabled` | `boolean` | `true` | Set to `false` to disable event tracking (respects user consent). |
 
 ## Behavior
 
@@ -149,6 +150,29 @@ destroy();
 ```
 
 Call this when your application is shutting down or when the SDK is no longer needed. After `destroy()`, calling other SDK methods will log a warning.
+
+### `setTrackingEnabled(enabled: boolean): void`
+
+Enable or disable event tracking at runtime. Use this to respect the user's consent decision from your consent management platform (cookie banner, CMP, etc.).
+
+```typescript
+import { setTrackingEnabled } from '@userpulse/sdk';
+
+// User declines tracking
+setTrackingEnabled(false);
+
+// User grants consent
+setTrackingEnabled(true);
+```
+
+When tracking is disabled:
+- `track()` and `page()` silently discard events (nothing is queued).
+- `flush()` is a no-op (queued events from before the change are not sent).
+- `identify()` and `reset()` still work — they manage local identity state and do not send events.
+
+When tracking is re-enabled, subsequent `track()` and `page()` calls resume normal behavior.
+
+The SDK does not persist consent state. Your application is responsible for storing the user's consent decision and passing it via `init({ trackingEnabled })` or `setTrackingEnabled()` on each page load.
 
 ### `getClient(): UserpulseInstance`
 

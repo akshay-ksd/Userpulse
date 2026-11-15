@@ -75,6 +75,14 @@ export function destroy(): void {
   currentClient = null;
 }
 
+export function setTrackingEnabled(enabled: boolean): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before setTrackingEnabled().');
+    return;
+  }
+  currentClient.setTrackingEnabled(enabled);
+}
+
 /** @internal — reset module state for tests */
 export function _reset(): void {
   if (currentClient) {

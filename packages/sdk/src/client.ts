@@ -43,6 +43,7 @@ function resolveConfig(config: UserpulseConfig): ResolvedConfig {
     flushInterval: config.flushInterval ?? DEFAULT_FLUSH_INTERVAL,
     maxQueueSize: config.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE,
     debug: config.debug ?? false,
+    trackingEnabled: config.trackingEnabled ?? true,
   };
 }
 
@@ -52,6 +53,7 @@ export class UserpulseClient implements UserpulseInstance {
   userId?: string;
   readonly sdkVersion: string = SDK_VERSION;
   readonly isInitialized: boolean = true;
+  trackingEnabled: boolean;
 
   /** @internal */
   traits?: Record<string, unknown>;
@@ -77,6 +79,7 @@ export class UserpulseClient implements UserpulseInstance {
     }
 
     this.config = Object.freeze(resolveConfig(userConfig));
+    this.trackingEnabled = this.config.trackingEnabled;
 
     const existing = loadAnonymousId();
     if (existing) {
@@ -90,8 +93,19 @@ export class UserpulseClient implements UserpulseInstance {
     this.addLifecycleListeners();
   }
 
+  setTrackingEnabled(enabled: boolean): void {
+    this.trackingEnabled = !!enabled;
+  }
+
   track(eventName: string, properties?: Record<string, unknown>): void {
     try {
+      if (!this.trackingEnabled) {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: Tracking is disabled. Event not queued.');
+        }
+        return;
+      }
+
       if (typeof eventName !== 'string' || eventName.trim() === '') {
         if (this.config.debug) {
           console.warn('UserpulseSDK: track() requires a non-empty event name.');
@@ -127,6 +141,13 @@ export class UserpulseClient implements UserpulseInstance {
 
   page(name?: string, properties?: Record<string, unknown>): void {
     try {
+      if (!this.trackingEnabled) {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: Tracking is disabled. Event not queued.');
+        }
+        return;
+      }
+
       if (this.queue.length >= this.config.maxQueueSize) {
         if (this.config.debug) {
           console.warn('UserpulseSDK: Event queue is full. Event dropped.');
@@ -190,6 +211,13 @@ export class UserpulseClient implements UserpulseInstance {
   }
 
   async flush(): Promise<void> {
+    if (!this.trackingEnabled) {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Tracking is disabled. Flush skipped.');
+      }
+      return;
+    }
+
     if (this.queue.length === 0 || this.flushing) {
       return;
     }

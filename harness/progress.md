@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 36 |
+| Not Started | 35 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 19 |
-| Overall completion | 34% |
+| Done | 20 |
+| Overall completion | 36% |
 
 **Last updated:** 2026-11-15
 
@@ -96,7 +96,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-017 | Track page views | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-018 | Reset user identity | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-019 | Batch and flush events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-020 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-020 | Respect tracking consent | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 
 ### EP-05 Event Ingestion and Processing
 
@@ -880,6 +880,44 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria already satisfied by US-016 implementation; independently verified on 2026-11-15.
 
+### US-020 — Respect tracking consent
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-020-respect-tracking-consent.md`
+
+**Acceptance criteria**
+- [x] The SDK supports an explicit tracking consent or enablement control. — `trackingEnabled` config option (default `true`) and `setTrackingEnabled(enabled)` runtime method.
+- [x] When tracking is disabled, non-essential events are not sent. — `track()`, `page()`, and `flush()` are guarded; return early when disabled.
+- [x] Consent changes apply to subsequent tracking. — `setTrackingEnabled(true)` resumes normal `track()`/`page()` behavior immediately.
+- [x] The SDK does not bypass the customer's consent decision. — All event-producing and event-sending methods check `this.trackingEnabled` before acting.
+
+**Implementation notes**
+- Types: Added `trackingEnabled` to `UserpulseConfig` (optional, default true), `ResolvedConfig` (required), and `UserpulseInstance` interface. Added `setTrackingEnabled()` to interface.
+- Client: `trackingEnabled` field initialized from config. Guards at top of `track()`, `page()`, and `flush()`. `identify()` and `reset()` remain unguarded (local state only). Debug warnings when methods are called with tracking disabled and `debug: true`.
+- Module exports: Top-level `setTrackingEnabled()` function with not-initialized guard.
+- README: Config table updated, new `setTrackingEnabled()` API section with usage examples and consent behavior documentation.
+- Key files: `packages/sdk/src/types.ts`, `packages/sdk/src/client.ts`, `packages/sdk/src/index.ts`, `packages/sdk/src/__tests__/consent.test.ts`, `packages/sdk/README.md`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 92 passed (15 new consent tests).
+- [x] Build: `pnpm --filter @userpulse/sdk build` — pass.
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm --filter @userpulse/sdk typecheck` — pass (pre-existing API Prisma type issues unrelated).
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- No persistent consent storage in the SDK — developer is responsible for consent state management.
+- No granular per-event-type consent — single on/off toggle. Can be extended later.
+- When tracking is re-enabled, events that were in the queue before disabling are still there but `flush()` was blocked while disabled. Re-enabling allows the next flush to send them.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -920,6 +958,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-020 | Respect tracking consent: `trackingEnabled` config option and `setTrackingEnabled()` runtime method, guards on `track()`/`page()`/`flush()`, 15 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-019 | Batch and flush events: `flush()` and `destroy()` methods, auto-flush timer, threshold flush, browser lifecycle hooks, network error handling with requeue, 21 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-018 | Reset user identity: already implemented in US-016; `reset()` method, tests, and docs all in place; formally verified and marked Done | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-017 | Track page views: `page()` method on `UserpulseClient` and top-level export, `$page` event with optional name and properties, 13 unit tests, README docs with privacy note; all acceptance criteria verified | Not Started → Done | Claude Code agent |

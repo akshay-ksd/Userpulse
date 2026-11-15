@@ -116,6 +116,8 @@ describe('Ingestion (e2e)', () => {
     expect(response.body).toEqual({
       accepted: true,
       eventCount: 1,
+      validEventCount: 1,
+      invalidEventCount: 0,
     });
 
     const batches = await prisma.eventBatch.findMany({
@@ -231,5 +233,82 @@ describe('Ingestion (e2e)', () => {
       .expect(202);
 
     expect(response.body.eventCount).toBe(5);
+  });
+
+  it('isolates invalid events and normalizes valid ones', async () => {
+    const { rawKey, projectId, orgId } = await createProjectWithKey();
+    const good = validEvent({ eventName: '  signup  ' });
+    const bad = validEvent({ anonymousId: undefined });
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/events')
+      .set('Authorization', `Bearer ${rawKey}`)
+      .send({ batch: [good, bad] })
+      .expect(202);
+
+    expect(response.body).toEqual({
+      accepted: true,
+      eventCount: 2,
+      validEventCount: 1,
+      invalidEventCount: 1,
+    });
+
+    const batch = await prisma.eventBatch.findFirstOrThrow({
+      where: { projectId },
+    });
+    expect(batch.status).toBe('PENDING');
+    expect(batch.validEventCount).toBe(1);
+    expect(batch.invalidEventCount).toBe(1);
+    expect(batch.invalidEvents).toEqual([
+      { eventId: bad.eventId, errors: ['identity_missing'] },
+    ]);
+    expect(batch.validEvents).toEqual([
+      expect.objectContaining({
+        eventId: good.eventId,
+        eventName: 'signup',
+        organizationId: orgId,
+        projectId,
+        ingestedAt: expect.any(String),
+      }),
+    ]);
+  });
+
+  it('marks a batch INVALID when every event fails validation', async () => {
+    const { rawKey, projectId } = await createProjectWithKey();
+
+    const response = await request(app.getHttpServer())
+      .post('/v1/events')
+      .set('Authorization', `Bearer ${rawKey}`)
+      .send({ batch: [validEvent({ anonymousId: undefined })] })
+      .expect(202);
+
+    expect(response.body.validEventCount).toBe(0);
+
+    const batch = await prisma.eventBatch.findFirstOrThrow({
+      where: { projectId },
+    });
+    expect(batch.status).toBe('INVALID');
+  });
+
+  it('ignores tenant identifiers supplied in the payload', async () => {
+    const { rawKey, projectId, orgId } = await createProjectWithKey();
+
+    await request(app.getHttpServer())
+      .post('/v1/events')
+      .set('Authorization', `Bearer ${rawKey}`)
+      .send({
+        batch: [
+          validEvent({ organizationId: 'other-org', projectId: 'other-proj' }),
+        ],
+      })
+      .expect(202);
+
+    const batch = await prisma.eventBatch.findFirstOrThrow({
+      where: { projectId },
+    });
+    expect(batch.organizationId).toBe(orgId);
+    expect(batch.validEvents).toEqual([
+      expect.objectContaining({ organizationId: orgId, projectId }),
+    ]);
   });
 });

@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 35 |
+| Not Started | 34 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 21 |
-| Overall completion | 38% |
+| Done | 22 |
+| Overall completion | 39% |
 
 **Last updated:** 2026-11-15
 
@@ -103,7 +103,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-021 | Submit an event batch | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-022 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-022 | Validate and normalize events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-023 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-024 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-025 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -965,6 +965,41 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All six acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
 
+### US-022 — Validate and normalize events
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-022-validate-normalize-events.md`
+
+**Acceptance criteria**
+- [x] Required fields and formats are validated. — Zod structural check (400) plus semantic rules in `validateAndNormalize()`: event name not blank / no control characters, timestamp not >24h in the future, at least one of `anonymousId`/`userId`, properties ≤50 keys and ≤8 KB.
+- [x] Invalid events follow a documented rejection or isolation policy. — Per-event isolation: batch still 202, invalid events stored as `{ eventId, errors }`, all-invalid batches get status `INVALID`. Documented in `harness/architecture.md` §5.2.
+- [x] Tenant identifiers cannot be overridden by untrusted payload values. — Normalized events are rebuilt from known fields; `organizationId`/`projectId` come only from the API key. Unit + e2e tests send spoofed values.
+- [x] Normalized events retain required context. — `eventId`, name, UTC timestamp, identity, session, page fields, properties, `sdkVersion`, plus server-set `organizationId`, `projectId`, `ingestedAt`.
+- [x] Validation failures are observable without logging sensitive content. — One structured warning per affected batch (batch ID, tenant scope, counts, per-code counts); `validEventCount`/`invalidEventCount` stored on the batch and returned in the response. Test asserts no event content or identifiers in the log.
+
+**Implementation notes**
+- Database: `EventBatch` gains `validEvents`, `invalidEvents`, `validEventCount`, `invalidEventCount` (all nullable); `EventBatchStatus` gains `INVALID`. Migration `20261115110000_event_batch_validation`.
+- API: new `apps/api/src/ingestion/event-validator.ts`; `IngestionService.submitBatch()` validates before storing and logs failures; `POST /v1/events` response now `{ accepted, eventCount, validEventCount, invalidEventCount }` (additive).
+- The original payload stays in `events` for audit/replay; US-023 should consume `validEvents`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 122 passed (21 new).
+- [x] Integration / E2E tests: `pnpm --filter api test:e2e` — 123 passed against local PostgreSQL 16 (3 new). This run also executed the US-013 and US-021 e2e tests that were previously written but not run; they pass.
+- [x] Lint / typecheck / build / format: `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm format:check` — all pass (pre-existing lint warnings only).
+
+**Blockers / follow-up**
+- Architecture places normalization in the event processor behind SQS; the MVP validates at the ingestion boundary because the queue is still the PostgreSQL `event_batches` table. Revisit when SQS is introduced.
+- The SDK does not yet read `invalidEventCount` from the response.
+- Limits (24h skew, 50 keys, 8 KB) are constants in `event-validator.ts`, not configuration.
+
+**Completion note**
+- All five acceptance criteria verified by automated unit and e2e tests on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -1005,6 +1040,8 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-022 | Validate and normalize events: `validateAndNormalize()` at the ingestion boundary, per-event isolation with error codes, `INVALID` batch status, server-set tenant scope, structured failure logging, policy documented in `architecture.md`; unit + e2e verified | In Progress → Done | Claude Code agent |
+| 2026-11-15 | US-022 | Implementation started | Not Started → In Progress | Claude Code agent |
 | 2026-11-15 | US-021 | Submit event batch: `POST /v1/events` with API key auth, `EventBatch` queue table, `ApiKeyGuard`, `IngestionModule`, Zod validation, CORS/CSRF config, 19 new unit tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-020 | Respect tracking consent: `enabled` config option, `setEnabled()` runtime toggle, consent gates on track/page/identify/flush, 19 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-019 | Batch and flush events: `flush()` and `destroy()` methods, auto-flush timer, `visibilitychange`/`sendBeacon` unload handler, HTTP transport via fetch, 20 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |

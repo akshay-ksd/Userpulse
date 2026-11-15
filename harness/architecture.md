@@ -248,6 +248,37 @@ sequenceDiagram
 An ingestion acknowledgement means the batch was accepted by SQS. It
 does not mean the event has already been persisted in ClickHouse.
 
+#### Event validation and isolation policy
+
+Events are validated and normalized at the ingestion boundary, before a
+batch is queued.
+
+-   **Request-level rejection (HTTP 400, nothing stored):** malformed
+    body, empty batch, more than 100 events, or an event missing
+    `eventId` (UUID), `eventName` (1-200 characters), or an ISO 8601
+    `timestamp`.
+-   **Event-level isolation (HTTP 202):** an event that passes the
+    structural check but fails a semantic rule is isolated; the rest of
+    the batch is still accepted. Rules: `eventName` not blank and free of
+    control characters; `timestamp` no more than 24 hours in the future;
+    at least one of `anonymousId` or `userId`; `properties` at most 50
+    keys and 8 KB serialized.
+-   Isolated events are recorded on the batch as `{ eventId, errors }`
+    (error codes only) and are never forwarded to analytics. A batch
+    whose events are all isolated is stored with status `INVALID`. The
+    original payload is retained on the batch for audit and replay.
+-   The response reports `eventCount`, `validEventCount`, and
+    `invalidEventCount`.
+-   **Normalization:** string fields are trimmed, blank optional fields
+    dropped, timestamps converted to UTC, unknown top-level fields
+    discarded, and `organizationId`, `projectId`, and `ingestedAt` are set
+    by the server from the tracking credential. Payload values can never
+    set tenant identifiers.
+-   **Observability:** each batch with isolated events emits one
+    structured warning containing the batch ID, tenant scope, counts, and
+    per-error-code counts. Event content and user identifiers are not
+    logged.
+
 ### 5.3 Reliability requirements
 
 -   Assume SQS/Lambda delivery is at-least-once.

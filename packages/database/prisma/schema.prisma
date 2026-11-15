@@ -157,17 +157,22 @@ enum EventBatchStatus {
   PROCESSING
   DONE
   FAILED
+  INVALID
 }
 
 model EventBatch {
-  id             String           @id @default(uuid())
-  organizationId String
-  projectId      String
-  events         Json
-  eventCount     Int
-  status         EventBatchStatus @default(PENDING)
-  createdAt      DateTime         @default(now())
-  processedAt    DateTime?
+  id                String           @id @default(uuid())
+  organizationId    String
+  projectId         String
+  events            Json
+  eventCount        Int
+  validEventCount   Int?
+  invalidEventCount Int?
+  validEvents       Json?
+  invalidEvents     Json?
+  status            EventBatchStatus @default(PENDING)
+  createdAt         DateTime         @default(now())
+  processedAt       DateTime?
 
   @@index([status, createdAt])
   @@index([projectId])

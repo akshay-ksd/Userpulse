@@ -8,7 +8,10 @@ import {
 } from '@nestjs/common';
 import { Public } from '@nestjs/authentication';
 import { ApiKeyGuard, type ApiKeyPayload } from './api-key.guard.js';
-import { IngestionService } from './ingestion.service.js';
+import {
+  IngestionService,
+  type SubmitBatchResult,
+} from './ingestion.service.js';
 import { submitBatchSchema, type SubmitBatchDto } from './ingestion.dto.js';
 
 @Controller('v1/events')
@@ -22,7 +25,7 @@ export class IngestionController {
   async submitBatch(
     @Body({ schema: submitBatchSchema }) dto: SubmitBatchDto,
     @Req() req: { apiKeyPayload: ApiKeyPayload },
-  ): Promise<{ accepted: boolean; eventCount: number }> {
+  ): Promise<{ accepted: boolean } & SubmitBatchResult> {
     const { projectId, organizationId, apiKeyId } = req.apiKeyPayload;
 
     const result = await this.ingestionService.submitBatch(
@@ -32,6 +35,6 @@ export class IngestionController {
       dto.batch,
     );
 
-    return { accepted: true, eventCount: result.eventCount };
+    return { accepted: true, ...result };
   }
 }

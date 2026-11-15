@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 41 |
+| Not Started | 40 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 15 |
-| Overall completion | 27% |
+| Done | 16 |
+| Overall completion | 29% |
 
 **Last updated:** 2026-11-15
 
@@ -92,7 +92,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 |---|---|---|---:|---|---|---|---|
 | US-014 | Install and initialize the SDK | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-015 | Track a product event | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-016 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-016 | Identify a user | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-017 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-018 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-019 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -729,6 +729,46 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All five acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
 
+### US-016 — Identify a user
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-016-identify-user.md`
+
+**Acceptance criteria**
+- [x] The SDK exposes an identity method. — `identify(userId, traits?)` on `UserpulseClient`, `UserpulseInstance` interface, and top-level module export.
+- [x] The developer can provide a customer-defined user reference. — `userId: string` parameter, no email or PII required.
+- [x] Subsequent events use the active identity. — `track()` includes `userId` in event payload after `identify()`.
+- [x] Email or other personal information is not required. — `userId` is any non-empty string; `traits` is optional.
+- [x] Anonymous-to-identified behavior is documented. — README section describes pre-identify (anonymousId only), post-identify (both), and post-reset (new anonymousId, no userId).
+
+**Implementation notes**
+- SDK: Added `identify(userId, traits?)` and `reset()` to `UserpulseClient` (`client.ts`) and top-level exports (`index.ts`).
+- `identify()` validates userId (non-empty string), stores userId and traits on the client. Invalid calls log debug warnings and return silently.
+- `reset()` clears userId and traits, generates a new anonymousId (persisted to localStorage), for logout flows.
+- `track()` updated to spread `userId` into events when set.
+- Types: Added `userId?` and `identify()`/`reset()` to `UserpulseInstance` interface.
+- README updated with `identify()`, `reset()`, and anonymous-to-identified behavior documentation.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 43 passed (14 init + 13 track + 16 identify).
+- [x] Build: `pnpm --filter @userpulse/sdk build` — produces dist with JS + declarations.
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: SDK clean (pre-existing web/api issues unrelated).
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- `page()` is US-017, `flush()` is US-019.
+- Server-side identity resolution (linking anonymous to identified events) deferred to US-021+.
+- `traits` stored locally; no server-side user property sync yet.
+
+**Completion note**
+- All five acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -769,6 +809,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-016 | Identify a user: `identify()` and `reset()` methods on `UserpulseClient` and top-level exports, `track()` events include `userId` after identify, 16 unit tests, README docs with anonymous-to-identified behavior; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-015 | Track a product event: `track()` method on `UserpulseClient` and top-level export, event queuing with validation, 13 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-014 | Install and initialize SDK: `@userpulse/sdk` package with `init()`, `getClient()`, config validation, anonymous ID, SDK version embedding, 14 unit tests, README; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-013 | Revoke or rotate credential: `DELETE /organizations/:orgId/projects/:projectId/api-keys/:keyId` (revoke), `POST .../api-keys/:keyId/rotate` (rotate+replace), `revokedBy` audit field, web UI with revoke/rotate buttons and confirmation dialogs; all acceptance criteria verified | Not Started → Done | Claude Code agent |

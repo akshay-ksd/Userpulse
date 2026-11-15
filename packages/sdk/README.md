@@ -67,6 +67,39 @@ Each event is assigned a unique `eventId`, an ISO 8601 `timestamp`, and the curr
 
 If called before `init()`, with an invalid event name, or when the queue is full, the call is silently ignored (no error thrown). Enable `debug: true` to see warnings in the console.
 
+### `identify(userId: string, traits?: Record<string, unknown>): void`
+
+Associate subsequent events with a known user.
+
+```typescript
+import { identify } from '@userpulse/sdk';
+
+identify('user-123', { plan: 'pro', name: 'Alice' });
+```
+
+- `userId` — A non-empty string: the customer's own user identifier. Email or other personal information is not required.
+- `traits` — Optional user attributes (e.g. name, plan, company). Stored on the client for future use.
+
+After calling `identify()`, all subsequent `track()` events include the `userId`. The `anonymousId` is preserved alongside it, enabling the platform to link anonymous pre-login activity to the identified user.
+
+### `reset(): void`
+
+Clear the current identity and generate a fresh anonymous ID. Use this when a user logs out.
+
+```typescript
+import { reset } from '@userpulse/sdk';
+
+reset();
+```
+
+After `reset()`, the `userId` is cleared, a new `anonymousId` is generated, and subsequent events are anonymous again. This prevents data leakage between users on a shared device.
+
+#### Anonymous-to-identified behavior
+
+1. **Before `identify()`:** Events carry only `anonymousId`. Each browser/device gets a stable anonymous ID persisted in `localStorage`.
+2. **After `identify(userId)`:** Events carry both `anonymousId` and `userId`. The platform can link the anonymous history to the identified user.
+3. **After `reset()`:** The `userId` is cleared and a fresh `anonymousId` is generated. The user is anonymous again.
+
 ### `getClient(): UserpulseInstance`
 
 Returns the current SDK instance. Throws if `init()` has not been called.

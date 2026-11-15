@@ -48,9 +48,13 @@ function resolveConfig(config: UserpulseConfig): ResolvedConfig {
 
 export class UserpulseClient implements UserpulseInstance {
   readonly config: Readonly<ResolvedConfig>;
-  readonly anonymousId: string;
+  anonymousId: string;
+  userId?: string;
   readonly sdkVersion: string = SDK_VERSION;
   readonly isInitialized: boolean = true;
+
+  /** @internal */
+  traits?: Record<string, unknown>;
 
   /** @internal */
   readonly queue: UserpulseEvent[] = [];
@@ -92,6 +96,7 @@ export class UserpulseClient implements UserpulseInstance {
         eventName,
         timestamp: new Date().toISOString(),
         anonymousId: this.anonymousId,
+        ...(this.userId !== undefined && { userId: this.userId }),
         sdkVersion: this.sdkVersion,
         ...(properties !== undefined && { properties }),
       };
@@ -100,6 +105,37 @@ export class UserpulseClient implements UserpulseInstance {
     } catch {
       if (this.config.debug) {
         console.warn('UserpulseSDK: Unexpected error in track().');
+      }
+    }
+  }
+
+  identify(userId: string, traits?: Record<string, unknown>): void {
+    try {
+      if (typeof userId !== 'string' || userId.trim() === '') {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: identify() requires a non-empty user ID.');
+        }
+        return;
+      }
+
+      this.userId = userId;
+      this.traits = traits;
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Unexpected error in identify().');
+      }
+    }
+  }
+
+  reset(): void {
+    try {
+      this.userId = undefined;
+      this.traits = undefined;
+      this.anonymousId = generateUUID();
+      persistAnonymousId(this.anonymousId);
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Unexpected error in reset().');
       }
     }
   }

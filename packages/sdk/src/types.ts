@@ -30,7 +30,10 @@ export interface UserpulseEvent {
 export interface UserpulseInstance {
   readonly config: Readonly<ResolvedConfig>;
   readonly anonymousId: string;
+  readonly userId?: string;
   readonly sdkVersion: string;
   readonly isInitialized: boolean;
   track(eventName: string, properties?: Record<string, unknown>): void;
+  identify(userId: string, traits?: Record<string, unknown>): void;
+  reset(): void;
 }

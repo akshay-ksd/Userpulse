@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 40 |
+| Not Started | 39 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 16 |
-| Overall completion | 29% |
+| Done | 17 |
+| Overall completion | 30% |
 
 **Last updated:** 2026-11-15
 
@@ -93,7 +93,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-014 | Install and initialize the SDK | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-015 | Track a product event | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-016 | Identify a user | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-017 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-017 | Track page views | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-018 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-019 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-020 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -769,6 +769,44 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All five acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
 
+### US-017 — Track page views
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-017-track-page-views.md`
+
+**Acceptance criteria**
+- [x] The SDK provides a page or screen tracking method. — `page(name?, properties?)` on `UserpulseClient`, `UserpulseInstance` interface, and top-level module export.
+- [x] Page name and path can be recorded. — `name` parameter and `properties` (including `path`, `title`, etc.) supported.
+- [x] Page-view events follow the standard event contract. — Uses `UserpulseEvent` with `eventName: '$page'`, `eventId`, `timestamp`, `anonymousId`, `userId` (if identified), `sdkVersion`.
+- [x] Sensitive query parameters and page content are not automatically collected. — SDK never reads `window.location`, `document.title`, or any browser globals; developer explicitly passes page data.
+
+**Implementation notes**
+- SDK: Added `page(name?, properties?)` to `UserpulseClient` (`client.ts`) and top-level export (`index.ts`).
+- Event uses reserved `eventName: '$page'` to distinguish from custom track events.
+- `name` is merged into `properties` when provided; caller `properties` take precedence if both set `name`.
+- Same queue management, error handling, and debug logging as `track()`.
+- Types: Added `page()` to `UserpulseInstance` interface.
+- README updated with `page()` documentation, usage examples, and privacy note.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 56 passed (14 init + 13 track + 16 identify + 13 page).
+- [x] Build: `pnpm --filter @userpulse/sdk build` — produces dist with JS + declarations.
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: SDK clean (pre-existing API Prisma type issues unrelated).
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Auto page-view tracking (history listener) not implemented — may be added as opt-in feature later.
+- `flush()` / HTTP transport (US-019) will send queued page events to the server.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -809,6 +847,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-017 | Track page views: `page()` method on `UserpulseClient` and top-level export, `$page` event with optional name and properties, 13 unit tests, README docs with privacy note; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-016 | Identify a user: `identify()` and `reset()` methods on `UserpulseClient` and top-level exports, `track()` events include `userId` after identify, 16 unit tests, README docs with anonymous-to-identified behavior; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-015 | Track a product event: `track()` method on `UserpulseClient` and top-level export, event queuing with validation, 13 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-014 | Install and initialize SDK: `@userpulse/sdk` package with `init()`, `getClient()`, config validation, anonymous ID, SDK version embedding, 14 unit tests, README; all acceptance criteria verified | Not Started → Done | Claude Code agent |

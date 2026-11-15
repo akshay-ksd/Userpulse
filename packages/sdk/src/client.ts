@@ -109,6 +109,38 @@ export class UserpulseClient implements UserpulseInstance {
     }
   }
 
+  page(name?: string, properties?: Record<string, unknown>): void {
+    try {
+      if (this.queue.length >= this.config.maxQueueSize) {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: Event queue is full. Event dropped.');
+        }
+        return;
+      }
+
+      const mergedProperties: Record<string, unknown> = {
+        ...(typeof name === 'string' && name.trim() !== '' ? { name } : {}),
+        ...properties,
+      };
+
+      const event: UserpulseEvent = {
+        eventId: generateUUID(),
+        eventName: '$page',
+        timestamp: new Date().toISOString(),
+        anonymousId: this.anonymousId,
+        ...(this.userId !== undefined && { userId: this.userId }),
+        sdkVersion: this.sdkVersion,
+        ...(Object.keys(mergedProperties).length > 0 && { properties: mergedProperties }),
+      };
+
+      this.queue.push(event);
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Unexpected error in page().');
+      }
+    }
+  }
+
   identify(userId: string, traits?: Record<string, unknown>): void {
     try {
       if (typeof userId !== 'string' || userId.trim() === '') {

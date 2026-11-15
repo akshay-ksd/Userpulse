@@ -67,6 +67,30 @@ Each event is assigned a unique `eventId`, an ISO 8601 `timestamp`, and the curr
 
 If called before `init()`, with an invalid event name, or when the queue is full, the call is silently ignored (no error thrown). Enable `debug: true` to see warnings in the console.
 
+### `page(name?: string, properties?: Record<string, unknown>): void`
+
+Record a page or screen view.
+
+```typescript
+import { page } from '@userpulse/sdk';
+
+// Page with name
+page('Home');
+
+// Page with name and properties
+page('Product', { path: '/products/123', category: 'electronics' });
+
+// Page with properties only
+page(undefined, { path: '/dashboard' });
+```
+
+- `name` — Optional page or screen name (e.g. `"Home"`, `"Product Detail"`).
+- `properties` — Optional structured data attached to the event (e.g. `path`, `referrer`, `title`).
+
+Page events use the reserved event name `$page` and follow the standard event contract: `eventId`, `timestamp`, `anonymousId`, `userId` (if identified), and `sdkVersion`.
+
+**Privacy:** The SDK does **not** automatically collect `window.location`, `document.title`, query parameters, or any other browser globals. The developer explicitly passes only the page data they intend to track. This prevents accidental collection of sensitive URL parameters (tokens, session IDs, PII in query strings).
+
 ### `identify(userId: string, traits?: Record<string, unknown>): void`
 
 Associate subsequent events with a known user.

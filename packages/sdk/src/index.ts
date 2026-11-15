@@ -35,6 +35,14 @@ export function track(eventName: string, properties?: Record<string, unknown>): 
   currentClient.track(eventName, properties);
 }
 
+export function page(name?: string, properties?: Record<string, unknown>): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before page().');
+    return;
+  }
+  currentClient.page(name, properties);
+}
+
 export function identify(userId: string, traits?: Record<string, unknown>): void {
   if (!currentClient) {
     console.warn('UserpulseSDK: Not initialized. Call init() before identify().');

@@ -34,6 +34,7 @@ export interface UserpulseInstance {
   readonly sdkVersion: string;
   readonly isInitialized: boolean;
   track(eventName: string, properties?: Record<string, unknown>): void;
+  page(name?: string, properties?: Record<string, unknown>): void;
   identify(userId: string, traits?: Record<string, unknown>): void;
   reset(): void;
 }

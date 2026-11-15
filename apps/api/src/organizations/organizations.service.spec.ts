@@ -1,4 +1,8 @@
-import { NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma } from '@userpulse/database';
 import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -10,6 +14,9 @@ function mockPrisma() {
     organizationMember: {
       findMany: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      count: vi.fn(),
+      delete: vi.fn(),
     },
   } as unknown as PrismaService;
 }
@@ -150,6 +157,138 @@ describe('OrganizationsService', () => {
       const result = await service.findOneByUser('org-1', 'user-1');
       expect(result.id).toBe('org-1');
       expect(result.role).toBe('MEMBER');
+    });
+  });
+
+  describe('listMembers', () => {
+    it('returns members when user is a member', async () => {
+      const prisma = mockPrisma();
+      const service = new OrganizationsService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ role: 'MEMBER' });
+
+      (
+        prisma.organizationMember.findMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([
+        {
+          id: 'mem-1',
+          role: 'OWNER',
+          createdAt: new Date(),
+          user: { id: 'user-1', email: 'owner@example.com', name: 'Owner' },
+        },
+        {
+          id: 'mem-2',
+          role: 'MEMBER',
+          createdAt: new Date(),
+          user: { id: 'user-2', email: 'member@example.com', name: 'Member' },
+        },
+      ]);
+
+      const result = await service.listMembers('org-1', 'user-2');
+      expect(result).toHaveLength(2);
+      expect(result[0].email).toBe('owner@example.com');
+      expect(result[1].role).toBe('MEMBER');
+    });
+
+    it('throws NotFoundException for non-member', async () => {
+      const prisma = mockPrisma();
+      const service = new OrganizationsService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(service.listMembers('org-1', 'user-1')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('removeMember', () => {
+    it('allows owner to remove a member', async () => {
+      const prisma = mockPrisma();
+      const service = new OrganizationsService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ role: 'OWNER' });
+
+      (
+        prisma.organizationMember.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        id: 'mem-2',
+        role: 'MEMBER',
+        organizationId: 'org-1',
+      });
+
+      (
+        prisma.organizationMember.delete as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({});
+
+      await expect(
+        service.removeMember('org-1', 'mem-2', 'user-1'),
+      ).resolves.toBeUndefined();
+
+      expect(prisma.organizationMember.delete).toHaveBeenCalledWith({
+        where: { id: 'mem-2' },
+      });
+    });
+
+    it('throws ForbiddenException for non-owner', async () => {
+      const prisma = mockPrisma();
+      const service = new OrganizationsService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ role: 'MEMBER' });
+
+      await expect(
+        service.removeMember('org-1', 'mem-2', 'user-1'),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws NotFoundException when target member not found', async () => {
+      const prisma = mockPrisma();
+      const service = new OrganizationsService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ role: 'OWNER' });
+
+      (
+        prisma.organizationMember.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.removeMember('org-1', 'mem-2', 'user-1'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when removing last owner', async () => {
+      const prisma = mockPrisma();
+      const service = new OrganizationsService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ role: 'OWNER' });
+
+      (
+        prisma.organizationMember.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({
+        id: 'mem-1',
+        role: 'OWNER',
+        organizationId: 'org-1',
+      });
+
+      (
+        prisma.organizationMember.count as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(1);
+
+      await expect(
+        service.removeMember('org-1', 'mem-1', 'user-1'),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

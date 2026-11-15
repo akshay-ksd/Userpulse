@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 49 |
+| Not Started | 48 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 7 |
-| Overall completion | 13% |
+| Done | 8 |
+| Overall completion | 14% |
 
 **Last updated:** 2026-11-14
 
@@ -74,7 +74,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-005 | Create an organization | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-006 | View organizations | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
 | US-007 | Invite a colleague | Done | 100% | Claude Code agent | 2026-11-14 | 2026-11-14 | — |
-| US-008 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-008 | Manage organization members | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 
 ### EP-03 Projects and Tracking Credentials
 
@@ -429,6 +429,42 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified by automated unit/e2e tests on 2026-11-14; results recorded above.
 
+### US-008 — Manage organization members
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-008-manage-organization-members.md`
+
+**Acceptance criteria**
+- [x] The owner can view members and their roles. — `GET /organizations/:id/members` returns members with email, name, role, join date.
+- [x] Authorized owners can remove members. — `DELETE /organizations/:id/members/:memberId` (204), OWNER-only.
+- [x] Removed members lose access. — Deletion of `OrganizationMember` row; subsequent org access returns 404.
+- [x] The last owner cannot accidentally leave the organization without an owner. — Owner count check prevents removing the sole owner (400).
+
+**Implementation notes**
+- API: Added `listMembers` and `removeMember` to `OrganizationsService`. Added `GET :id/members` and `DELETE :id/members/:memberId` to `OrganizationsController`. No new DTOs needed (params only).
+- Web: Added `MembersList` component to org workspace page. Shows all members with role badges. OWNER sees "Remove" buttons (hidden on last owner). Includes confirmation dialog.
+- No database migration needed — existing `OrganizationMember` model is sufficient.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 56 passed (6 new: listMembers happy/non-member, removeMember owner/non-owner/not-found/last-owner).
+- [x] Integration / E2E tests: `pnpm --filter api test:e2e` — 64 passed (7 new: list 200/401/404, remove 204/403/400/401/404, access-loss verification).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Role changes (promote/demote) are out of scope for this story.
+- All members can view the member list; only OWNERs can remove.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit/e2e tests on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -469,6 +505,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-008 | Manage organization members implemented: `GET /organizations/:id/members`, `DELETE /organizations/:id/members/:memberId`, members list on workspace page, last-owner protection; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-007 | Invite colleague implemented: `OrganizationInvitation` model, `POST/GET/DELETE /organizations/:id/invitations`, `POST /invitations/accept`, org workspace invite UI, accept page; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-006 | View organizations implemented: `/organizations/[id]` workspace page, dashboard org cards now link to workspace, loading/error/not-found states; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-005 | Organization creation implemented: `POST /organizations`, `GET /organizations`, `GET /organizations/:id`, dashboard org list + create form, unit + e2e tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |

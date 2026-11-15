@@ -23,6 +23,15 @@ type Invitation = {
   createdAt: string;
 };
 
+type Member = {
+  id: string;
+  userId: string;
+  email: string;
+  name: string | null;
+  role: string;
+  createdAt: string;
+};
+
 type State =
   | { status: 'loading' }
   | { status: 'not-found' }
@@ -181,11 +190,106 @@ function PendingInvitations({ orgId, refreshKey }: { orgId: string; refreshKey: 
   );
 }
 
+function MembersList({
+  orgId,
+  isOwner,
+  refreshKey,
+}: {
+  orgId: string;
+  isOwner: boolean;
+  refreshKey: number;
+}) {
+  const [members, setMembers] = useState<Member[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadMembers() {
+      try {
+        const res = await fetch(`${API_URL}/organizations/${orgId}/members`, {
+          credentials: 'include',
+        });
+        if (!cancelled && res.ok) {
+          setMembers(await res.json());
+        }
+      } catch {
+        // Silently ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadMembers();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, refreshKey]);
+
+  async function handleRemove(memberId: string) {
+    if (!confirm('Remove this member from the organization?')) return;
+    setRemoving(memberId);
+    try {
+      const res = await fetch(`${API_URL}/organizations/${orgId}/members/${memberId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok || res.status === 204) {
+        setMembers((prev) => prev.filter((m) => m.id !== memberId));
+      } else if (res.status === 400) {
+        const body = await res.json();
+        alert(body.message ?? 'Cannot remove this member.');
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  if (loading) return <p className="text-sm text-zinc-500">Loading members…</p>;
+  if (members.length === 0) return null;
+
+  const ownerCount = members.filter((m) => m.role === 'OWNER').length;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Members</h2>
+      <ul className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
+        {members.map((m) => (
+          <li key={m.id} className="flex items-center justify-between px-4 py-3">
+            <div className="flex flex-col gap-0.5">
+              <span className="text-sm text-black dark:text-zinc-50">{m.name ?? m.email}</span>
+              {m.name && <span className="text-xs text-zinc-500">{m.email}</span>}
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
+                {m.role}
+              </span>
+              {isOwner && !(m.role === 'OWNER' && ownerCount <= 1) && (
+                <button
+                  onClick={() => handleRemove(m.id)}
+                  disabled={removing === m.id}
+                  className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                >
+                  {removing === m.id ? 'Removing…' : 'Remove'}
+                </button>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function OrganizationWorkspace() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [state, setState] = useState<State>({ status: 'loading' });
   const [inviteRefresh, setInviteRefresh] = useState(0);
+  const [memberRefresh, setMemberRefresh] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,10 +405,19 @@ function OrganizationWorkspace() {
         </p>
       </div>
 
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+      <MembersList orgId={id} isOwner={isOwner} refreshKey={memberRefresh} />
+
       {isOwner && (
         <>
           <hr className="border-black/[.08] dark:border-white/[.145]" />
-          <InviteForm orgId={id} onInvited={() => setInviteRefresh((n) => n + 1)} />
+          <InviteForm
+            orgId={id}
+            onInvited={() => {
+              setInviteRefresh((n) => n + 1);
+              setMemberRefresh((n) => n + 1);
+            }}
+          />
           <PendingInvitations orgId={id} refreshKey={inviteRefresh} />
         </>
       )}

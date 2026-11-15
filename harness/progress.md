@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 43 |
+| Not Started | 42 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 13 |
-| Overall completion | 23% |
+| Done | 14 |
+| Overall completion | 25% |
 
 **Last updated:** 2026-11-15
 
@@ -90,7 +90,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-014 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-014 | Install and initialize the SDK | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-015 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-016 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-017 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -647,6 +647,48 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
 
+### US-014 — Install and initialize the SDK
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-014-install-initialize-sdk.md`
+
+**Acceptance criteria**
+- [x] Installation instructions are available. — `packages/sdk/README.md` with npm/pnpm install commands, initialization example, and config reference.
+- [x] The SDK initializes using the project's tracking credential. — `init({ apiKey: '...' })` creates a configured client instance.
+- [x] Invalid configuration produces a clear error. — Missing/empty `apiKey` throws `Error('UserpulseSDK: apiKey is required')`.
+- [x] Initialization does not block normal application usage. — `init()` is synchronous, makes no network calls, returns immediately.
+- [x] The SDK version is identifiable in submitted events. — `sdkVersion` property on instance, `SDK_VERSION` exported constant (`0.1.0`).
+
+**Implementation notes**
+- Package: `@userpulse/sdk` (`packages/sdk/`) — ESM, TypeScript, no runtime dependencies.
+- Core files: `src/types.ts` (interfaces), `src/version.ts` (version constant), `src/client.ts` (`UserpulseClient` class), `src/index.ts` (public API).
+- Config defaults: endpoint `https://api.userpulse.dev/v1/events`, flushInterval 30s, maxQueueSize 100, debug false.
+- Anonymous ID: `crypto.randomUUID()`, persisted to `localStorage` (browser) with try/catch fallback for SSR/Node.
+- Config is frozen after initialization to prevent mutation.
+- Singleton pattern: `init()` creates/replaces module-level client; `getClient()` returns it.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 14 passed (init happy paths, error cases, defaults, UUID format, config freeze, getClient before/after init).
+- [x] Build: `pnpm --filter @userpulse/sdk build` — produces `dist/` with `.js` and `.d.ts`.
+- [x] Typecheck: `pnpm typecheck` — pass (all workspace packages).
+- [x] Lint: `pnpm lint` — pass (pre-existing API warnings only).
+- [x] Build (full): `pnpm build` — pass (all 4 workspace packages).
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- `track()`, `identify()`, `page()`, `reset()`, `flush()` are US-015 through US-019.
+- HTTP transport to ingestion endpoint deferred to US-019/US-021.
+- Consent handling deferred to US-020.
+- Default endpoint URL is a placeholder; actual URL determined in US-021.
+
+**Completion note**
+- All five acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -687,6 +729,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-014 | Install and initialize SDK: `@userpulse/sdk` package with `init()`, `getClient()`, config validation, anonymous ID, SDK version embedding, 14 unit tests, README; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-013 | Revoke or rotate credential: `DELETE /organizations/:orgId/projects/:projectId/api-keys/:keyId` (revoke), `POST .../api-keys/:keyId/rotate` (rotate+replace), `revokedBy` audit field, web UI with revoke/rotate buttons and confirmation dialogs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-012 | Generate a tracking credential: `ApiKeysModule` with `POST/GET /organizations/:orgId/projects/:projectId/api-keys`, credentials section on project detail page, SHA-256 hash storage, show-once key display; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-011 | Update or archive a project: `PATCH /organizations/:orgId/projects/:projectId` for name/description/status updates, edit form and archive/restore buttons on project detail page, confirmation dialog for archiving; all acceptance criteria verified | Not Started → Done | Claude Code agent |

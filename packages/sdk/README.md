@@ -67,6 +67,30 @@ Each event is assigned a unique `eventId`, an ISO 8601 `timestamp`, and the curr
 
 If called before `init()`, with an invalid event name, or when the queue is full, the call is silently ignored (no error thrown). Enable `debug: true` to see warnings in the console.
 
+### `identify(userId: string, traits?: Record<string, unknown>): void`
+
+Associate subsequent events with a known user.
+
+```typescript
+import { identify } from '@userpulse/sdk';
+
+identify('user-123', { name: 'Jane', plan: 'pro' });
+```
+
+- `userId` — A non-empty string that is your application's stable user identifier (e.g. internal user ID, username). Email or other personal information is not required.
+- `traits` — Optional user properties (name, plan, company, etc.) stored for future use.
+
+After calling `identify()`, all subsequent `track()` events include the `userId` alongside the `anonymousId`. This allows the analytics system to link anonymous pre-login activity with identified post-login activity.
+
+**Anonymous-to-identified behavior:**
+- Before `identify()`: events carry only `anonymousId`.
+- After `identify()`: events carry both `anonymousId` and `userId`.
+- The `anonymousId` is preserved across identity changes, enabling session stitching.
+- Calling `identify()` again with a different `userId` replaces the current identity.
+- To fully reset identity (including `anonymousId`), use `reset()` (coming in a future version).
+
+If called before `init()`, with an invalid userId, or if an unexpected error occurs, the call is silently ignored. Enable `debug: true` to see warnings.
+
 ### `getClient(): UserpulseInstance`
 
 Returns the current SDK instance. Throws if `init()` has not been called.

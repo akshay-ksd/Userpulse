@@ -51,6 +51,10 @@ export class UserpulseClient implements UserpulseInstance {
   readonly anonymousId: string;
   readonly sdkVersion: string = SDK_VERSION;
   readonly isInitialized: boolean = true;
+  userId: string | null = null;
+
+  /** @internal */
+  userTraits: Record<string, unknown> | null = null;
 
   /** @internal */
   readonly queue: UserpulseEvent[] = [];
@@ -68,6 +72,26 @@ export class UserpulseClient implements UserpulseInstance {
     } else {
       this.anonymousId = generateUUID();
       persistAnonymousId(this.anonymousId);
+    }
+  }
+
+  identify(userId: string, traits?: Record<string, unknown>): void {
+    try {
+      if (typeof userId !== 'string' || userId.trim() === '') {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: identify() requires a non-empty userId.');
+        }
+        return;
+      }
+
+      this.userId = userId;
+      if (traits !== undefined) {
+        this.userTraits = traits;
+      }
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Unexpected error in identify().');
+      }
     }
   }
 
@@ -93,6 +117,7 @@ export class UserpulseClient implements UserpulseInstance {
         timestamp: new Date().toISOString(),
         anonymousId: this.anonymousId,
         sdkVersion: this.sdkVersion,
+        ...(this.userId !== null && { userId: this.userId }),
         ...(properties !== undefined && { properties }),
       };
 

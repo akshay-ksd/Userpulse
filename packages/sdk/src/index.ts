@@ -35,6 +35,14 @@ export function track(eventName: string, properties?: Record<string, unknown>): 
   currentClient.track(eventName, properties);
 }
 
+export function identify(userId: string, traits?: Record<string, unknown>): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before identify().');
+    return;
+  }
+  currentClient.identify(userId, traits);
+}
+
 /** @internal — reset module state for tests */
 export function _reset(): void {
   currentClient = null;

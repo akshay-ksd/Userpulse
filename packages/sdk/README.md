@@ -63,7 +63,7 @@ track('button_clicked', { buttonId: 'signup-cta', page: '/home' });
 - `eventName` — A non-empty string identifying the action (e.g. `"signup"`, `"purchase"`, `"feature_used"`).
 - `properties` — Optional structured data attached to the event.
 
-Each event is assigned a unique `eventId`, an ISO 8601 `timestamp`, and the current `anonymousId`. Events are queued locally; flushing to the server will be available in a future version.
+Each event is assigned a unique `eventId`, an ISO 8601 `timestamp`, and the current `anonymousId`. Events are queued locally and flushed automatically (see **Flushing** below).
 
 If called before `init()`, with an invalid event name, or when the queue is full, the call is silently ignored (no error thrown). Enable `debug: true` to see warnings in the console.
 
@@ -128,6 +128,41 @@ reset();
 After `reset()`, events carry only the new `anonymousId` — no `userId` is included until `identify()` is called again. Previously queued events are not affected; they retain the identity they were recorded with.
 
 If called before `init()` or if an unexpected error occurs, the call is silently ignored. Enable `debug: true` to see warnings.
+
+### `flush(): Promise<void>`
+
+Explicitly flush all queued events to the server.
+
+```typescript
+import { flush } from '@userpulse/sdk';
+
+await flush();
+```
+
+Returns a Promise that resolves when the batch has been sent (or silently fails on network error). The queue is cleared regardless of success.
+
+### `destroy(): void`
+
+Stop the SDK and release resources.
+
+```typescript
+import { destroy } from '@userpulse/sdk';
+
+destroy();
+```
+
+`destroy()` stops the automatic flush timer, removes the page-unload listener, and triggers a final flush of any remaining events. After `destroy()`, calls to `track()` and `page()` are silently ignored.
+
+## Flushing
+
+Events are buffered in an in-memory queue and sent to the server in batches:
+
+- **Automatic interval:** Every `flushInterval` ms (default 30 seconds), the queue is flushed.
+- **Page unload:** In browsers, queued events are sent using `navigator.sendBeacon()` when the page becomes hidden (`visibilitychange` event), providing best-effort delivery on navigation or tab close.
+- **Explicit:** Call `flush()` to send events immediately.
+- **On destroy:** `destroy()` triggers a final flush.
+
+Network failures are caught silently — the SDK never throws or blocks your application. Failed batches are discarded (no retry). Enable `debug: true` to see flush warnings in the console.
 
 ### `getClient(): UserpulseInstance`
 

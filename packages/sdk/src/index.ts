@@ -12,8 +12,11 @@ export { SDK_VERSION } from './version.js';
 let currentClient: UserpulseClient | null = null;
 
 export function init(config: UserpulseConfig): UserpulseInstance {
-  if (currentClient && currentClient.config.debug) {
-    console.warn('UserpulseSDK: Re-initializing. Previous instance will be replaced.');
+  if (currentClient) {
+    if (currentClient.config.debug) {
+      console.warn('UserpulseSDK: Re-initializing. Previous instance will be replaced.');
+    }
+    currentClient.destroy();
   }
 
   currentClient = new UserpulseClient(config);
@@ -59,7 +62,27 @@ export function reset(): void {
   currentClient.reset();
 }
 
+export async function flush(): Promise<void> {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before flush().');
+    return;
+  }
+  await currentClient.flush();
+}
+
+export function destroy(): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before destroy().');
+    return;
+  }
+  currentClient.destroy();
+  currentClient = null;
+}
+
 /** @internal — reset module state for tests */
 export function _reset(): void {
+  if (currentClient) {
+    currentClient.destroy();
+  }
   currentClient = null;
 }

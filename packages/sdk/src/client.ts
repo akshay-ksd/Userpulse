@@ -59,6 +59,36 @@ export class UserpulseClient implements UserpulseInstance {
   /** @internal */
   readonly queue: UserpulseEvent[] = [];
 
+  /** @internal */
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** @internal */
+  private destroyed = false;
+
+  /** @internal */
+  private visibilityHandler: (() => void) | null = null;
+
+  /** @internal — typed references for browser globals */
+  private static get doc():
+    | { visibilityState: string; addEventListener: Function; removeEventListener: Function }
+    | undefined {
+    return typeof globalThis !== 'undefined' && 'document' in globalThis
+      ? ((globalThis as Record<string, unknown>).document as {
+          visibilityState: string;
+          addEventListener: Function;
+          removeEventListener: Function;
+        })
+      : undefined;
+  }
+
+  private static get nav(): { sendBeacon?: (url: string, data: unknown) => boolean } | undefined {
+    return typeof globalThis !== 'undefined' && 'navigator' in globalThis
+      ? ((globalThis as Record<string, unknown>).navigator as {
+          sendBeacon?: (url: string, data: unknown) => boolean;
+        })
+      : undefined;
+  }
+
   constructor(userConfig: UserpulseConfig) {
     if (!userConfig || typeof userConfig.apiKey !== 'string' || userConfig.apiKey.trim() === '') {
       throw new Error('UserpulseSDK: apiKey is required');
@@ -73,6 +103,9 @@ export class UserpulseClient implements UserpulseInstance {
       this.anonymousId = generateUUID();
       persistAnonymousId(this.anonymousId);
     }
+
+    this.startFlushTimer();
+    this.addUnloadHandler();
   }
 
   identify(userId: string, traits?: Record<string, unknown>): void {
@@ -97,6 +130,8 @@ export class UserpulseClient implements UserpulseInstance {
 
   track(eventName: string, properties?: Record<string, unknown>): void {
     try {
+      if (this.destroyed) return;
+
       if (typeof eventName !== 'string' || eventName.trim() === '') {
         if (this.config.debug) {
           console.warn('UserpulseSDK: track() requires a non-empty event name.');
@@ -131,6 +166,8 @@ export class UserpulseClient implements UserpulseInstance {
 
   page(name?: string, properties?: Record<string, unknown>): void {
     try {
+      if (this.destroyed) return;
+
       if (this.queue.length >= this.config.maxQueueSize) {
         if (this.config.debug) {
           console.warn('UserpulseSDK: Event queue is full. Event dropped.');
@@ -180,6 +217,112 @@ export class UserpulseClient implements UserpulseInstance {
     } catch {
       if (this.config.debug) {
         console.warn('UserpulseSDK: Unexpected error in reset().');
+      }
+    }
+  }
+
+  async flush(): Promise<void> {
+    try {
+      if (this.queue.length === 0) return;
+
+      const batch = this.queue.splice(0, this.queue.length);
+
+      await fetch(this.config.endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.config.apiKey}`,
+        },
+        body: JSON.stringify({ batch }),
+      });
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Failed to flush events.');
+      }
+    }
+  }
+
+  destroy(): void {
+    if (this.destroyed) return;
+    this.destroyed = true;
+    this.stopFlushTimer();
+    this.removeUnloadHandler();
+    this.flush();
+  }
+
+  /** @internal */
+  private startFlushTimer(): void {
+    if (this.config.flushInterval > 0) {
+      this.flushTimer = setInterval(() => {
+        this.flush();
+      }, this.config.flushInterval);
+    }
+  }
+
+  /** @internal */
+  private stopFlushTimer(): void {
+    if (this.flushTimer !== null) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+
+  /** @internal */
+  private addUnloadHandler(): void {
+    try {
+      const doc = UserpulseClient.doc;
+      if (doc) {
+        this.visibilityHandler = () => {
+          if (doc.visibilityState === 'hidden') {
+            this.flushSync();
+          }
+        };
+        doc.addEventListener('visibilitychange', this.visibilityHandler);
+      }
+    } catch {
+      // Not in a browser environment
+    }
+  }
+
+  /** @internal */
+  private removeUnloadHandler(): void {
+    try {
+      const doc = UserpulseClient.doc;
+      if (this.visibilityHandler && doc) {
+        doc.removeEventListener('visibilitychange', this.visibilityHandler);
+        this.visibilityHandler = null;
+      }
+    } catch {
+      // Not in a browser environment
+    }
+  }
+
+  /** @internal — synchronous best-effort flush using sendBeacon */
+  private flushSync(): void {
+    try {
+      if (this.queue.length === 0) return;
+
+      const batch = this.queue.splice(0, this.queue.length);
+      const payload = JSON.stringify({ batch });
+
+      const nav = UserpulseClient.nav;
+      if (nav && typeof nav.sendBeacon === 'function') {
+        const blob = new Blob([payload], { type: 'application/json' });
+        nav.sendBeacon(this.config.endpoint, blob);
+      } else if (typeof fetch !== 'undefined') {
+        fetch(this.config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.config.apiKey}`,
+          },
+          body: payload,
+          keepalive: true,
+        });
+      }
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Failed to flush events on page unload.');
       }
     }
   }

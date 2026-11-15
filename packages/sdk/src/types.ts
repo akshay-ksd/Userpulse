@@ -37,4 +37,6 @@ export interface UserpulseInstance {
   identify(userId: string, traits?: Record<string, unknown>): void;
   page(name?: string, properties?: Record<string, unknown>): void;
   reset(): void;
+  flush(): Promise<void>;
+  destroy(): void;
 }

@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 38 |
+| Not Started | 37 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 18 |
-| Overall completion | 32% |
+| Done | 19 |
+| Overall completion | 34% |
 
 **Last updated:** 2026-11-15
 
@@ -95,7 +95,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-016 | Identify a user | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-017 | Track page views | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-018 | Reset user identity | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-019 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-019 | Batch and flush events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-020 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-05 Event Ingestion and Processing
@@ -843,6 +843,47 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
 
+### US-019 — Batch and flush events
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-019-batch-flush-events.md`
+
+**Acceptance criteria**
+- [x] Events are buffered in a bounded queue. — Existing `maxQueueSize` (default 100) enforced.
+- [x] The SDK flushes when configured limits or conditions are met. — Auto-flush timer every `flushInterval` ms; `visibilitychange` → `sendBeacon` on page hide.
+- [x] A developer can request an explicit flush. — `flush()` method on client and top-level export.
+- [x] Queue limits prevent unbounded memory growth. — `maxQueueSize` enforced; queue spliced on flush.
+- [x] Network failures do not block the customer application. — fetch wrapped in try/catch; `flush()` never rejects.
+
+**Implementation notes**
+- SDK: Added `flush()` (async, POSTs `{ batch: [...] }` with `Bearer` auth), `destroy()` (stops timer, removes listeners, final flush, sets destroyed flag).
+- Auto-flush: `setInterval` in constructor, cleared on `destroy()`.
+- Unload: `visibilitychange` listener uses `navigator.sendBeacon` for best-effort delivery; falls back to `fetch` with `keepalive`.
+- Browser API access via static accessors with `typeof globalThis` guards — no DOM lib dependency.
+- Module: `_reset()` now calls `destroy()` on the previous client; `init()` calls `destroy()` before replacing.
+- README updated with `flush()`, `destroy()`, and Flushing section.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 82 passed (20 new flush/destroy/auto-flush tests).
+- [x] Build: `pnpm --filter @userpulse/sdk build` — produces dist with JS + declarations.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build (full): `pnpm build` — pass (all 4 workspace packages).
+- [x] Lint: `pnpm lint` — pass (pre-existing API warnings only).
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- No retry on failed flushes — events are dropped. Retry/persistent queue is a post-MVP enhancement.
+- Ingestion endpoint (US-021) doesn't exist yet; SDK sends to `config.endpoint` regardless.
+- Consent handling (US-020) is separate.
+
+**Completion note**
+- All five acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -883,6 +924,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-019 | Batch and flush events: `flush()` and `destroy()` methods, auto-flush timer, `visibilitychange`/`sendBeacon` unload handler, HTTP transport via fetch, 20 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-018 | Reset user identity: `reset()` method on `UserpulseClient` and top-level export, clears userId/traits/generates new anonymousId, 11 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-017 | Track page views: `page()` method on `UserpulseClient` and top-level export, `$page` event with pageName/pagePath, 13 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-016 | Identify a user: `identify()` method on `UserpulseClient` and top-level export, userId in subsequent track events, 11 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |

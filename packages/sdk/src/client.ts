@@ -43,6 +43,7 @@ function resolveConfig(config: UserpulseConfig): ResolvedConfig {
     flushInterval: config.flushInterval ?? DEFAULT_FLUSH_INTERVAL,
     maxQueueSize: config.maxQueueSize ?? DEFAULT_MAX_QUEUE_SIZE,
     debug: config.debug ?? false,
+    enabled: config.enabled ?? true,
   };
 }
 
@@ -52,6 +53,9 @@ export class UserpulseClient implements UserpulseInstance {
   readonly sdkVersion: string = SDK_VERSION;
   readonly isInitialized: boolean = true;
   userId: string | null = null;
+
+  /** @internal */
+  private _enabled: boolean;
 
   /** @internal */
   userTraits: Record<string, unknown> | null = null;
@@ -95,6 +99,7 @@ export class UserpulseClient implements UserpulseInstance {
     }
 
     this.config = Object.freeze(resolveConfig(userConfig));
+    this._enabled = this.config.enabled;
 
     const existing = loadAnonymousId();
     if (existing) {
@@ -108,8 +113,23 @@ export class UserpulseClient implements UserpulseInstance {
     this.addUnloadHandler();
   }
 
+  get enabled(): boolean {
+    return this._enabled;
+  }
+
+  setEnabled(enabled: boolean): void {
+    this._enabled = enabled;
+  }
+
   identify(userId: string, traits?: Record<string, unknown>): void {
     try {
+      if (!this._enabled) {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: Tracking is disabled. identify() ignored.');
+        }
+        return;
+      }
+
       if (typeof userId !== 'string' || userId.trim() === '') {
         if (this.config.debug) {
           console.warn('UserpulseSDK: identify() requires a non-empty userId.');
@@ -131,6 +151,13 @@ export class UserpulseClient implements UserpulseInstance {
   track(eventName: string, properties?: Record<string, unknown>): void {
     try {
       if (this.destroyed) return;
+
+      if (!this._enabled) {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: Tracking is disabled. track() ignored.');
+        }
+        return;
+      }
 
       if (typeof eventName !== 'string' || eventName.trim() === '') {
         if (this.config.debug) {
@@ -167,6 +194,13 @@ export class UserpulseClient implements UserpulseInstance {
   page(name?: string, properties?: Record<string, unknown>): void {
     try {
       if (this.destroyed) return;
+
+      if (!this._enabled) {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: Tracking is disabled. page() ignored.');
+        }
+        return;
+      }
 
       if (this.queue.length >= this.config.maxQueueSize) {
         if (this.config.debug) {
@@ -223,6 +257,7 @@ export class UserpulseClient implements UserpulseInstance {
 
   async flush(): Promise<void> {
     try {
+      if (!this._enabled) return;
       if (this.queue.length === 0) return;
 
       const batch = this.queue.splice(0, this.queue.length);
@@ -300,6 +335,7 @@ export class UserpulseClient implements UserpulseInstance {
   /** @internal — synchronous best-effort flush using sendBeacon */
   private flushSync(): void {
     try {
+      if (!this._enabled) return;
       if (this.queue.length === 0) return;
 
       const batch = this.queue.splice(0, this.queue.length);

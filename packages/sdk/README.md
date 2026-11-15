@@ -31,6 +31,7 @@ The API key is generated from your project settings page. See [Generate a tracki
 | `flushInterval` | `number` | `30000` | Interval in milliseconds between automatic event flushes. |
 | `maxQueueSize` | `number` | `100` | Maximum number of events to buffer before flushing. |
 | `debug` | `boolean` | `false` | Enable debug logging to the console. |
+| `enabled` | `boolean` | `true` | Enable or disable event tracking. When `false`, `track()`, `page()`, and `identify()` are silently ignored. |
 
 ## Behavior
 
@@ -167,6 +168,45 @@ Network failures are caught silently — the SDK never throws or blocks your app
 ### `getClient(): UserpulseInstance`
 
 Returns the current SDK instance. Throws if `init()` has not been called.
+
+### `setEnabled(enabled: boolean): void`
+
+Enable or disable tracking at runtime.
+
+```typescript
+import { setEnabled } from '@userpulse/sdk';
+
+// Disable tracking (e.g. user declined consent)
+setEnabled(false);
+
+// Re-enable tracking (e.g. user granted consent)
+setEnabled(true);
+```
+
+When tracking is disabled, `track()`, `page()`, and `identify()` are silently ignored, and `flush()` does not send queued events. `reset()` and `destroy()` continue to work normally.
+
+Events that occurred while tracking was disabled are not retroactively captured when re-enabled. Only new events after re-enabling are tracked.
+
+The `enabled` state is a runtime control and is not persisted. Your application is responsible for storing and restoring consent state.
+
+**Consent integration example:**
+
+```typescript
+import { init, setEnabled } from '@userpulse/sdk';
+
+// Initialize with tracking disabled until consent is obtained
+const up = init({ apiKey: 'your-key', enabled: false });
+
+// When the user grants consent:
+function onConsentGranted() {
+  setEnabled(true);
+}
+
+// When the user revokes consent:
+function onConsentRevoked() {
+  setEnabled(false);
+}
+```
 
 ### `SDK_VERSION`
 

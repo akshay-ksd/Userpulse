@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 37 |
+| Not Started | 36 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 19 |
-| Overall completion | 34% |
+| Done | 20 |
+| Overall completion | 36% |
 
 **Last updated:** 2026-11-15
 
@@ -96,7 +96,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-017 | Track page views | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-018 | Reset user identity | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-019 | Batch and flush events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-020 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-020 | Respect tracking consent | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 
 ### EP-05 Event Ingestion and Processing
 
@@ -884,6 +884,45 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All five acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
 
+### US-020 — Respect tracking consent
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-020-respect-tracking-consent.md`
+
+**Acceptance criteria**
+- [x] The SDK supports an explicit tracking consent or enablement control. — `enabled` config option (default `true`) and `setEnabled()` runtime method.
+- [x] When tracking is disabled, non-essential events are not sent. — `track()`, `page()`, `identify()` silently no-op; `flush()` short-circuits.
+- [x] Consent changes apply to subsequent tracking. — `setEnabled(true)` resumes queuing; events while disabled are not retroactively captured.
+- [x] The SDK does not bypass the customer's consent decision. — All tracking methods check `_enabled` before proceeding.
+
+**Implementation notes**
+- Types: Added `enabled?: boolean` to `UserpulseConfig`, `enabled: boolean` to `ResolvedConfig`, `setEnabled()` and `enabled` getter to `UserpulseInstance`.
+- Client: `private _enabled` flag initialized from config, gating `track()`, `page()`, `identify()`, `flush()`, and `flushSync()`. Debug warnings when tracking suppressed.
+- Module: Top-level `setEnabled()` export delegating to client.
+- README: Added `enabled` to config table, `setEnabled()` API section with consent integration example.
+- No API, web, or database changes.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 101 passed (19 new consent tests).
+- [x] Build: `pnpm --filter @userpulse/sdk build` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build (full): `pnpm build` — pass.
+- [x] Lint: `pnpm lint` — pass (pre-existing API warnings only).
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- No persistence of consent state — customer application manages this.
+- Granular per-event-type consent is a post-MVP enhancement.
+- Server-side consent enforcement is independent (US-021+ ingestion boundary).
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -924,6 +963,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-020 | Respect tracking consent: `enabled` config option, `setEnabled()` runtime toggle, consent gates on track/page/identify/flush, 19 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-019 | Batch and flush events: `flush()` and `destroy()` methods, auto-flush timer, `visibilitychange`/`sendBeacon` unload handler, HTTP transport via fetch, 20 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-018 | Reset user identity: `reset()` method on `UserpulseClient` and top-level export, clears userId/traits/generates new anonymousId, 11 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-017 | Track page views: `page()` method on `UserpulseClient` and top-level export, `$page` event with pageName/pagePath, 13 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |

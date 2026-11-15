@@ -4,6 +4,7 @@ export interface UserpulseConfig {
   flushInterval?: number;
   maxQueueSize?: number;
   debug?: boolean;
+  enabled?: boolean;
 }
 
 export interface ResolvedConfig {
@@ -12,6 +13,7 @@ export interface ResolvedConfig {
   flushInterval: number;
   maxQueueSize: number;
   debug: boolean;
+  enabled: boolean;
 }
 
 export interface UserpulseEvent {
@@ -33,10 +35,12 @@ export interface UserpulseInstance {
   readonly userId: string | null;
   readonly sdkVersion: string;
   readonly isInitialized: boolean;
+  readonly enabled: boolean;
   track(eventName: string, properties?: Record<string, unknown>): void;
   identify(userId: string, traits?: Record<string, unknown>): void;
   page(name?: string, properties?: Record<string, unknown>): void;
   reset(): void;
   flush(): Promise<void>;
   destroy(): void;
+  setEnabled(enabled: boolean): void;
 }

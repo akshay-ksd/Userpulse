@@ -79,6 +79,14 @@ export function destroy(): void {
   currentClient = null;
 }
 
+export function setEnabled(enabled: boolean): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before setEnabled().');
+    return;
+  }
+  currentClient.setEnabled(enabled);
+}
+
 /** @internal — reset module state for tests */
 export function _reset(): void {
   if (currentClient) {

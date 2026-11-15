@@ -32,6 +32,15 @@ type Member = {
   createdAt: string;
 };
 
+type ProjectInfo = {
+  id: string;
+  organizationId: string;
+  name: string;
+  description: string | null;
+  status: string;
+  createdAt: string;
+};
+
 type State =
   | { status: 'loading' }
   | { status: 'not-found' }
@@ -284,6 +293,151 @@ function MembersList({
   );
 }
 
+function ProjectsSection({ orgId }: { orgId: string }) {
+  const [projects, setProjects] = useState<ProjectInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadProjects() {
+      try {
+        const res = await fetch(`${API_URL}/organizations/${orgId}/projects`, {
+          credentials: 'include',
+        });
+        if (!cancelled && res.ok) {
+          setProjects(await res.json());
+        }
+      } catch {
+        // Silently ignore
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void loadProjects();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const res = await fetch(`${API_URL}/organizations/${orgId}/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, description: description || undefined }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to create project.');
+        return;
+      }
+
+      const project = (await res.json()) as ProjectInfo;
+      setProjects((prev) => [project, ...prev]);
+      setName('');
+      setDescription('');
+      setShowForm(false);
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (loading) return <p className="text-sm text-zinc-500">Loading projects…</p>;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Projects</h2>
+        <button
+          onClick={() => setShowForm((v) => !v)}
+          className="rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+        >
+          {showForm ? 'Cancel' : 'New project'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form
+          onSubmit={handleCreate}
+          className="flex flex-col gap-3 rounded-xl border border-black/[.08] p-4 dark:border-white/[.08]"
+        >
+          <input
+            type="text"
+            required
+            placeholder="Project name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={submitting}
+            className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+          />
+          <textarea
+            placeholder="Description (optional)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            disabled={submitting}
+            rows={2}
+            className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+          />
+          <button
+            type="submit"
+            disabled={submitting}
+            className="self-end rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+          >
+            {submitting ? 'Creating…' : 'Create project'}
+          </button>
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        </form>
+      )}
+
+      {projects.length === 0 && !showForm ? (
+        <div className="rounded-xl border border-dashed border-black/[.15] p-6 text-center dark:border-white/[.2]">
+          <p className="text-zinc-600 dark:text-zinc-400">
+            No projects yet. Create one to start tracking.
+          </p>
+        </div>
+      ) : (
+        <ul className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
+          {projects.map((p) => (
+            <li key={p.id}>
+              <Link
+                href={`/organizations/${orgId}/projects/${p.id}`}
+                className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
+              >
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-black dark:text-zinc-50">{p.name}</span>
+                  {p.description && (
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      {p.description}
+                    </span>
+                  )}
+                </div>
+                <span className="text-xs text-zinc-400">
+                  {new Date(p.createdAt).toLocaleDateString()}
+                </span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function OrganizationWorkspace() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
@@ -398,12 +552,7 @@ function OrganizationWorkspace() {
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <div className="rounded-xl border border-dashed border-black/[.15] p-6 text-center dark:border-white/[.2]">
-        <p className="text-zinc-600 dark:text-zinc-400">Projects and settings will appear here.</p>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
-          Created {new Date(org.createdAt).toLocaleDateString()}
-        </p>
-      </div>
+      <ProjectsSection orgId={id} />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
       <MembersList orgId={id} isOwner={isOwner} refreshKey={memberRefresh} />

@@ -41,15 +41,15 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 48 |
+| Not Started | 47 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 8 |
-| Overall completion | 14% |
+| Done | 9 |
+| Overall completion | 16% |
 
-**Last updated:** 2026-11-14
+**Last updated:** 2026-11-15
 
 > Update the counts above whenever any story status or completion percentage changes. Overall completion is `sum of story progress percentages / 56`, rounded to the nearest whole percent, unless the team adopts a different documented weighting method.
 
@@ -80,7 +80,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-009 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-009 | Create a project | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-010 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-011 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-012 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -465,6 +465,44 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified by automated unit/e2e tests on 2026-11-15; results recorded above.
 
+### US-009 — Create a project
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `claude/new-session-x7qwz5`
+- **Task brief:** `harness/tasks/US-009-create-project.md`
+
+**Acceptance criteria**
+- [x] The user can create a project with a valid name. — `POST /organizations/:orgId/projects` (201) creates project with name and optional description.
+- [x] The project belongs to the selected organization. — Project stored with `organizationId`, scoped to org.
+- [x] Unauthorized users cannot create projects. — Non-members get 404, unauthenticated get 401.
+- [x] The project appears in the organization's project list. — `GET /organizations/:orgId/projects` lists projects; org workspace page shows project cards.
+
+**Implementation notes**
+- API: New `ProjectsModule` with `ProjectsController` and `ProjectsService`. Three endpoints: `POST /organizations/:orgId/projects` (201), `GET /organizations/:orgId/projects`, `GET /organizations/:orgId/projects/:projectId`. All verify org membership before any operation.
+- Web: Updated `/organizations/[id]` workspace page — replaced placeholder with `ProjectsSection` component (project list, create form, empty state). Created `/organizations/[id]/projects/[projectId]` detail page with loading/error/not-found states.
+- No database migration needed — `Project` and `ProjectStatus` already exist in the schema.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 63 passed (7 new: create/findByOrg/findOne happy paths + non-member/wrong-org rejections).
+- [x] Integration / E2E tests: `pnpm --filter api test:e2e` — 77 passed (13 new: create 201/401/404/400, list 200/empty/404/401, get-one 200/404-non-member/404-missing/404-wrong-org/401).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Project edit/archive is US-011.
+- Tracking credentials are US-012/013.
+- Project detail page is a shell with placeholder content for future features.
+- Pre-existing `app.e2e-spec.ts` failure (missing `DATABASE_URL`) is unrelated.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit/e2e tests on 2026-11-15; results recorded above.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -505,6 +543,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-009 | Create a project implemented: `ProjectsModule` with `POST/GET /organizations/:orgId/projects`, `GET /organizations/:orgId/projects/:projectId`, project list on workspace page, project detail page; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-008 | Manage organization members implemented: `GET /organizations/:id/members`, `DELETE /organizations/:id/members/:memberId`, members list on workspace page, last-owner protection; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-007 | Invite colleague implemented: `OrganizationInvitation` model, `POST/GET/DELETE /organizations/:id/invitations`, `POST /invitations/accept`, org workspace invite UI, accept page; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-14 | US-006 | View organizations implemented: `/organizations/[id]` workspace page, dashboard org cards now link to workspace, loading/error/not-found states; all acceptance criteria verified | Not Started → Done | Claude Code agent |

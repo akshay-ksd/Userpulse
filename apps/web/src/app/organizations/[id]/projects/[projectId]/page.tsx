@@ -21,10 +21,104 @@ type State =
   | { status: 'error' }
   | { status: 'ready'; project: ProjectInfo };
 
+function EditProjectForm({
+  project,
+  orgId,
+  onUpdated,
+  onCancel,
+}: {
+  project: ProjectInfo;
+  orgId: string;
+  onUpdated: (p: ProjectInfo) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description ?? '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError('');
+    setSubmitting(true);
+
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${project.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            name,
+            description: description || null,
+          }),
+        },
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to update project.');
+        return;
+      }
+
+      const updated = (await res.json()) as ProjectInfo;
+      onUpdated(updated);
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Edit project</h2>
+      <input
+        type="text"
+        required
+        placeholder="Project name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        disabled={submitting}
+        className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+      />
+      <textarea
+        placeholder="Description (optional)"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        disabled={submitting}
+        rows={2}
+        className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+      />
+      <div className="flex gap-2 self-end">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={submitting}
+          className="rounded-lg border border-black/[.15] px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:hover:bg-zinc-900"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+        >
+          {submitting ? 'Saving…' : 'Save'}
+        </button>
+      </div>
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+    </form>
+  );
+}
+
 function ProjectDetail() {
   const { id: orgId, projectId } = useParams<{ id: string; projectId: string }>();
   const router = useRouter();
   const [state, setState] = useState<State>({ status: 'loading' });
+  const [editing, setEditing] = useState(false);
+  const [archiving, setArchiving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,6 +158,38 @@ function ProjectDetail() {
       cancelled = true;
     };
   }, [orgId, projectId, router]);
+
+  async function handleArchiveToggle() {
+    if (state.status !== 'ready') return;
+    const { project } = state;
+    const isArchiving = project.status === 'ACTIVE';
+
+    if (isArchiving && !confirm('Are you sure you want to archive this project? Archived projects will not accept new events.')) {
+      return;
+    }
+
+    setArchiving(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${project.id}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ status: isArchiving ? 'ARCHIVED' : 'ACTIVE' }),
+        },
+      );
+
+      if (res.ok) {
+        const updated = (await res.json()) as ProjectInfo;
+        setState({ status: 'ready', project: updated });
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setArchiving(false);
+    }
+  }
 
   if (state.status === 'loading') {
     return <p className="text-zinc-600 dark:text-zinc-400">Loading project…</p>;
@@ -106,6 +232,7 @@ function ProjectDetail() {
   }
 
   const { project } = state;
+  const isArchived = project.status === 'ARCHIVED';
 
   return (
     <main className="flex w-full max-w-2xl flex-col gap-6 rounded-2xl bg-white p-10 shadow-sm dark:bg-zinc-950">
@@ -126,11 +253,57 @@ function ProjectDetail() {
               </span>
             )}
           </div>
-          <span className="rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+          <span
+            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              isArchived
+                ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+            }`}
+          >
             {project.status}
           </span>
         </div>
       </div>
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      {editing ? (
+        <EditProjectForm
+          project={project}
+          orgId={orgId}
+          onUpdated={(updated) => {
+            setState({ status: 'ready', project: updated });
+            setEditing(false);
+          }}
+          onCancel={() => setEditing(false)}
+        />
+      ) : (
+        <div className="flex gap-2">
+          <button
+            onClick={() => setEditing(true)}
+            className="rounded-lg border border-black/[.15] px-3 py-1.5 text-sm font-medium text-black transition-colors hover:bg-zinc-50 dark:border-white/[.2] dark:text-zinc-50 dark:hover:bg-zinc-900"
+          >
+            Edit
+          </button>
+          <button
+            onClick={handleArchiveToggle}
+            disabled={archiving}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors disabled:opacity-50 ${
+              isArchived
+                ? 'border border-black/[.15] text-black hover:bg-zinc-50 dark:border-white/[.2] dark:text-zinc-50 dark:hover:bg-zinc-900'
+                : 'border border-red-200 text-red-600 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950'
+            }`}
+          >
+            {archiving
+              ? isArchived
+                ? 'Restoring…'
+                : 'Archiving…'
+              : isArchived
+                ? 'Restore'
+                : 'Archive'}
+          </button>
+        </div>
+      )}
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

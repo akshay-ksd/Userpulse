@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import type { CreateProjectDto } from './create-project.dto.js';
+import type { UpdateProjectDto } from './update-project.dto.js';
 
 export interface ProjectInfo {
   id: string;
@@ -59,7 +60,7 @@ export class ProjectsService {
     await this.verifyMembership(orgId, userId);
 
     const projects = await this.prisma.project.findMany({
-      where: { organizationId: orgId, status: 'ACTIVE' },
+      where: { organizationId: orgId },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -95,6 +96,41 @@ export class ProjectsService {
       description: project.description,
       status: project.status,
       createdAt: project.createdAt,
+    };
+  }
+
+  async update(
+    orgId: string,
+    projectId: string,
+    userId: string,
+    dto: UpdateProjectDto,
+  ): Promise<ProjectInfo> {
+    await this.verifyMembership(orgId, userId);
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, organizationId: orgId },
+    });
+
+    if (!project) {
+      throw new NotFoundException();
+    }
+
+    const updated = await this.prisma.project.update({
+      where: { id: projectId },
+      data: {
+        ...(dto.name !== undefined && { name: dto.name }),
+        ...(dto.description !== undefined && { description: dto.description }),
+        ...(dto.status !== undefined && { status: dto.status }),
+      },
+    });
+
+    return {
+      id: updated.id,
+      organizationId: updated.organizationId,
+      name: updated.name,
+      description: updated.description,
+      status: updated.status,
+      createdAt: updated.createdAt,
     };
   }
 }

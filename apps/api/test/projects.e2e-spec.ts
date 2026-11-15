@@ -269,4 +269,172 @@ describe('ProjectsController (e2e)', () => {
         .expect(401);
     });
   });
+
+  describe('PATCH /organizations/:orgId/projects/:projectId', () => {
+    it('updates project name (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .send({ name: 'Old Name' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .send({ name: 'New Name' })
+        .expect(200);
+
+      expect(res.body.name).toBe('New Name');
+    });
+
+    it('updates project description (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .send({ name: 'My App', description: 'Old description' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .send({ description: 'New description' })
+        .expect(200);
+
+      expect(res.body.description).toBe('New description');
+      expect(res.body.name).toBe('My App');
+    });
+
+    it('clears description with null (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .send({ name: 'My App', description: 'Some desc' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .send({ description: null })
+        .expect(200);
+
+      expect(res.body.description).toBeNull();
+    });
+
+    it('archives a project (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .send({ name: 'My App' })
+        .expect(201);
+
+      expect(createRes.body.status).toBe('ACTIVE');
+
+      const res = await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .send({ status: 'ARCHIVED' })
+        .expect(200);
+
+      expect(res.body.status).toBe('ARCHIVED');
+    });
+
+    it('restores an archived project (200)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .send({ name: 'My App' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .send({ status: 'ARCHIVED' })
+        .expect(200);
+
+      const res = await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .send({ status: 'ACTIVE' })
+        .expect(200);
+
+      expect(res.body.status).toBe('ACTIVE');
+    });
+
+    it('archived project appears in project list', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .send({ name: 'To Archive' })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/${createRes.body.id}`)
+        .set('Cookie', cookie)
+        .send({ status: 'ARCHIVED' })
+        .expect(200);
+
+      const listRes = await request(app.getHttpServer())
+        .get(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie)
+        .expect(200);
+
+      expect(listRes.body).toHaveLength(1);
+      expect(listRes.body[0].status).toBe('ARCHIVED');
+    });
+
+    it('rejects non-member (404)', async () => {
+      const cookie1 = await registerAndSignIn('user1@example.com');
+      const orgId = await createOrg(cookie1);
+
+      const createRes = await request(app.getHttpServer())
+        .post(`/organizations/${orgId}/projects`)
+        .set('Cookie', cookie1)
+        .send({ name: 'My App' })
+        .expect(201);
+
+      const cookie2 = await registerAndSignIn('user2@example.com');
+
+      await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/${createRes.body.id}`)
+        .set('Cookie', cookie2)
+        .send({ name: 'Hacked' })
+        .expect(404);
+    });
+
+    it('returns 404 for non-existent project', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+
+      await request(app.getHttpServer())
+        .patch(`/organizations/${orgId}/projects/non-existent`)
+        .set('Cookie', cookie)
+        .send({ name: 'X' })
+        .expect(404);
+    });
+
+    it('rejects unauthenticated (401)', async () => {
+      await request(app.getHttpServer())
+        .patch('/organizations/some-id/projects/some-project')
+        .send({ name: 'X' })
+        .expect(401);
+    });
+  });
 });

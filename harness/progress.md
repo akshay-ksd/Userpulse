@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 34 |
+| Not Started | 33 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 21 |
-| Overall completion | 38% |
+| Done | 22 |
+| Overall completion | 39% |
 
 **Last updated:** 2026-11-15
 
@@ -103,7 +103,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-021 | Submit an event batch | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-022 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-022 | Validate and normalize events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-023 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-024 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-025 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -963,6 +963,46 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All six acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
 
+### US-022 — Validate and normalize events
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-022-validate-normalize-events.md`
+
+**Acceptance criteria**
+- [x] Required fields and formats are validated. — `EventValidationService` validates eventName (non-empty after trim), timestamp range (not >1h future, not >1y old), properties size (<32KB) and nesting depth (≤5).
+- [x] Invalid events follow a documented rejection or isolation policy. — Invalid events stored with `validationStatus: 'REJECTED'` and `validationError` in the same `events` table; not silently dropped.
+- [x] Tenant identifiers cannot be overridden by untrusted payload values. — `organizationId`, `projectId`, `apiKey`, `apikey`, `api_key` stripped from event properties; server-side values from API key guard used.
+- [x] Normalized events retain required context. — Trimmed values stored; all required fields preserved. `anonymousId`/`userId` empty-to-null normalization.
+- [x] Validation failures are observable without logging sensitive content. — `Logger.warn` logs rejection count per project (no event content). Response includes `rejected` count and `errors` array with index and error message.
+
+**Implementation notes**
+- Database: Added `validationStatus` (default `'VALID'`) and `validationError` (nullable) to `Event` model. Migration `20261115120000_add_event_validation_fields`. New index `(projectId, validationStatus)`.
+- API: New `EventValidationService` (`apps/api/src/ingestion/event-validation.service.ts`) with `validateAndNormalize()` method. Normalization rules: trim whitespace, timestamp range validation, property size/depth limits, tenant ID stripping.
+- API: Updated `IngestionService.submitBatch()` to run per-event validation, split into valid/rejected arrays, store both with appropriate status. Updated `BatchResult` to `{ accepted, rejected, errors? }`.
+- API: Added `Logger` instance for rejection observability.
+- Response shape: 202 with `{ accepted: N, rejected: M, errors?: [...] }`. Backward compatible — SDK ignores response body.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 110 passed (12 new EventValidationService + 9 updated IngestionService).
+- [ ] Integration / E2E tests: `pnpm --filter api test:e2e` — not run (no PostgreSQL). 6 new validation e2e tests written.
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment. Tests are written and ready to run.
+- Downstream: US-023 should filter `validationStatus: 'VALID'` events only for processing.
+- Property size/depth limits (32KB, depth 5) are hardcoded; can be made configurable later.
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-15; e2e tests written but require PostgreSQL.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -1003,6 +1043,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-022 | Validate and normalize events: `EventValidationService` with per-event normalization (trimming, timestamp range, property size/depth limits, tenant ID stripping), `validationStatus`/`validationError` fields on Event model, updated `IngestionService` for partial rejection, 12 validation unit tests, 6 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-021 | Submit an event batch: `POST /v1/events` ingestion endpoint with API key auth guard, Zod validation, PostgreSQL event staging table, CSRF exclusion for SDK calls, 12 unit tests, 11 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-020 | Respect tracking consent: `trackingEnabled` config option and `setTrackingEnabled()` runtime method, guards on `track()`/`page()`/`flush()`, 15 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-019 | Batch and flush events: `flush()` and `destroy()` methods, auto-flush timer, threshold flush, browser lifecycle hooks, network error handling with requeue, 21 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |

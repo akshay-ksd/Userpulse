@@ -124,7 +124,8 @@ describe('IngestionController (e2e)', () => {
         .send({ batch: [makeEvent(), makeEvent()] })
         .expect(202);
 
-      expect(res.body).toEqual({ accepted: 2 });
+      expect(res.body.accepted).toBe(2);
+      expect(res.body.rejected).toBe(0);
     });
 
     it('stores events in the database with correct org/project IDs', async () => {
@@ -304,6 +305,113 @@ describe('IngestionController (e2e)', () => {
       expect(res.headers['access-control-allow-origin']).toBe(
         'https://customer-app.example.com',
       );
+    });
+
+    it('partially rejects events with whitespace-only eventName (202)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+      const apiKey = await createApiKey(cookie, orgId, projectId);
+
+      const res = await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({
+          batch: [makeEvent(), makeEvent({ eventName: '   ' })],
+        })
+        .expect(202);
+
+      expect(res.body.accepted).toBe(1);
+      expect(res.body.rejected).toBe(1);
+      expect(res.body.errors).toHaveLength(1);
+      expect(res.body.errors[0].index).toBe(1);
+    });
+
+    it('rejects events with future timestamps and accepts others (202)', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+      const apiKey = await createApiKey(cookie, orgId, projectId);
+
+      const futureEvent = makeEvent({
+        timestamp: new Date(Date.now() + 2 * 3_600_000).toISOString(),
+      });
+
+      const res = await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ batch: [makeEvent(), futureEvent] })
+        .expect(202);
+
+      expect(res.body.accepted).toBe(1);
+      expect(res.body.rejected).toBe(1);
+      expect(res.body.errors[0].error).toContain('future');
+    });
+
+    it('strips tenant IDs from properties before storage', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+      const apiKey = await createApiKey(cookie, orgId, projectId);
+
+      await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({
+          batch: [
+            makeEvent({
+              properties: {
+                organizationId: 'org-hack',
+                projectId: 'proj-hack',
+                safe: 'keep',
+              },
+            }),
+          ],
+        })
+        .expect(202);
+
+      const stored = await prisma.event.findMany();
+      expect(stored).toHaveLength(1);
+      expect(stored[0].properties).toEqual({ safe: 'keep' });
+    });
+
+    it('rejects events with oversized properties', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+      const apiKey = await createApiKey(cookie, orgId, projectId);
+
+      const bigEvent = makeEvent({
+        properties: { data: 'x'.repeat(40_000) },
+      });
+
+      const res = await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ batch: [bigEvent] })
+        .expect(202);
+
+      expect(res.body.accepted).toBe(0);
+      expect(res.body.rejected).toBe(1);
+      expect(res.body.errors[0].error).toContain('maximum size');
+    });
+
+    it('stores rejected events with REJECTED validationStatus', async () => {
+      const cookie = await registerAndSignIn();
+      const orgId = await createOrg(cookie);
+      const projectId = await createProject(cookie, orgId);
+      const apiKey = await createApiKey(cookie, orgId, projectId);
+
+      await request(app.getHttpServer())
+        .post('/v1/events')
+        .set('Authorization', `Bearer ${apiKey}`)
+        .send({ batch: [makeEvent({ eventName: '   ' })] })
+        .expect(202);
+
+      const stored = await prisma.event.findMany();
+      expect(stored).toHaveLength(1);
+      expect(stored[0].validationStatus).toBe('REJECTED');
+      expect(stored[0].validationError).toContain('eventName');
     });
   });
 });

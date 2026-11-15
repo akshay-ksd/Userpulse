@@ -1,6 +1,7 @@
 import { Prisma } from '@userpulse/database';
 import { describe, expect, it, vi } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { EventValidationService } from './event-validation.service.js';
 import { IngestionService } from './ingestion.service.js';
 import type { EventDto } from './submit-events.dto.js';
 
@@ -27,9 +28,14 @@ function makeEvent(overrides: Partial<EventDto> = {}): EventDto {
 }
 
 describe('IngestionService', () => {
+  function createService(prisma?: PrismaService) {
+    const p = prisma ?? mockPrisma();
+    const validation = new EventValidationService();
+    return { service: new IngestionService(p, validation), prisma: p };
+  }
+
   it('accepts a valid batch and returns the count', async () => {
-    const prisma = mockPrisma();
-    const service = new IngestionService(prisma);
+    const { service, prisma } = createService();
     const batch = [
       makeEvent(),
       makeEvent({ eventId: '550e8400-e29b-41d4-a716-446655440001' }),
@@ -37,13 +43,13 @@ describe('IngestionService', () => {
 
     const result = await service.submitBatch('org-1', 'proj-1', 'key-1', batch);
 
-    expect(result).toEqual({ accepted: 2 });
-    expect(prisma.event.createMany).toHaveBeenCalledOnce();
+    expect(result.accepted).toBe(2);
+    expect(result.rejected).toBe(0);
+    expect(prisma.event.createMany).toHaveBeenCalled();
   });
 
   it('inserts events with correct org and project context', async () => {
-    const prisma = mockPrisma();
-    const service = new IngestionService(prisma);
+    const { service, prisma } = createService();
     const batch = [
       makeEvent({ userId: 'user-42', properties: { page: '/home' } }),
     ];
@@ -60,11 +66,11 @@ describe('IngestionService', () => {
     expect(inserted.userId).toBe('user-42');
     expect(inserted.properties).toEqual({ page: '/home' });
     expect(inserted.eventTimestamp).toBeInstanceOf(Date);
+    expect(inserted.validationStatus).toBe('VALID');
   });
 
   it('updates lastUsedAt on the API key', async () => {
-    const prisma = mockPrisma();
-    const service = new IngestionService(prisma);
+    const { service, prisma } = createService();
 
     await service.submitBatch('org-1', 'proj-1', 'key-1', [makeEvent()]);
 
@@ -81,18 +87,18 @@ describe('IngestionService', () => {
     (prisma.projectApiKey.update as ReturnType<typeof vi.fn>).mockRejectedValue(
       new Error('DB error'),
     );
-    const service = new IngestionService(prisma);
+    const { service } = createService(prisma);
 
     const result = await service.submitBatch('org-1', 'proj-1', 'key-1', [
       makeEvent(),
     ]);
 
-    expect(result).toEqual({ accepted: 1 });
+    expect(result.accepted).toBe(1);
+    expect(result.rejected).toBe(0);
   });
 
   it('handles optional fields as null when not provided', async () => {
-    const prisma = mockPrisma();
-    const service = new IngestionService(prisma);
+    const { service, prisma } = createService();
     const batch = [
       makeEvent({
         anonymousId: undefined,
@@ -111,5 +117,73 @@ describe('IngestionService', () => {
     expect(inserted.userId).toBeNull();
     expect(inserted.properties).toBe(Prisma.JsonNull);
     expect(inserted.sdkVersion).toBeNull();
+  });
+
+  it('rejects invalid events and accepts valid ones in the same batch', async () => {
+    const { service, prisma } = createService();
+    const batch = [
+      makeEvent(),
+      makeEvent({
+        eventId: '550e8400-e29b-41d4-a716-446655440001',
+        eventName: '   ',
+      }),
+    ];
+
+    const result = await service.submitBatch('org-1', 'proj-1', 'key-1', batch);
+
+    expect(result.accepted).toBe(1);
+    expect(result.rejected).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors![0].index).toBe(1);
+    expect(result.errors![0].error).toContain('eventName');
+  });
+
+  it('rejects all events when all are invalid', async () => {
+    const { service } = createService();
+    const batch = [
+      makeEvent({ eventName: '   ' }),
+      makeEvent({
+        eventId: '550e8400-e29b-41d4-a716-446655440001',
+        eventName: '',
+      }),
+    ];
+
+    const result = await service.submitBatch('org-1', 'proj-1', 'key-1', batch);
+
+    expect(result.accepted).toBe(0);
+    expect(result.rejected).toBe(2);
+  });
+
+  it('strips tenant IDs from properties', async () => {
+    const { service, prisma } = createService();
+    const batch = [
+      makeEvent({
+        properties: {
+          organizationId: 'org-hack',
+          projectId: 'proj-hack',
+          safe: 'keep',
+        },
+      }),
+    ];
+
+    await service.submitBatch('org-1', 'proj-1', 'key-1', batch);
+
+    const call = (prisma.event.createMany as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
+    const inserted = call.data[0];
+    expect(inserted.properties).toEqual({ safe: 'keep' });
+  });
+
+  it('stores rejected events with REJECTED status and error', async () => {
+    const { service, prisma } = createService();
+    const batch = [makeEvent({ eventName: '   ' })];
+
+    await service.submitBatch('org-1', 'proj-1', 'key-1', batch);
+
+    const call = (prisma.event.createMany as ReturnType<typeof vi.fn>).mock
+      .calls[0][0];
+    const inserted = call.data[0];
+    expect(inserted.validationStatus).toBe('REJECTED');
+    expect(inserted.validationError).toContain('eventName');
   });
 });

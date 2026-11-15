@@ -164,10 +164,13 @@ model Event {
   sdkVersion     String?
   eventTimestamp  DateTime @db.Timestamptz(6)
   ingestedAt     DateTime @default(now()) @db.Timestamptz(6)
-  processed      Boolean  @default(false)
+  processed        Boolean  @default(false)
+  validationStatus String   @default("VALID")
+  validationError  String?
 
   @@index([projectId, ingestedAt])
   @@index([processed, ingestedAt])
   @@index([eventId])
+  @@index([projectId, validationStatus])
   @@map("events")
 }

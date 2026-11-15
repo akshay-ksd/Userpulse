@@ -50,6 +50,23 @@ Initialize the SDK with the given configuration. Returns an instance with:
 - `sdkVersion` — The SDK version string.
 - `isInitialized` — Always `true` after successful initialization.
 
+### `track(eventName: string, properties?: Record<string, unknown>): void`
+
+Record a named product event.
+
+```typescript
+import { track } from '@userpulse/sdk';
+
+track('button_clicked', { buttonId: 'signup-cta', page: '/home' });
+```
+
+- `eventName` — A non-empty string identifying the action (e.g. `"signup"`, `"purchase"`, `"feature_used"`).
+- `properties` — Optional structured data attached to the event.
+
+Each event is assigned a unique `eventId`, an ISO 8601 `timestamp`, and the current `anonymousId`. Events are queued locally; flushing to the server will be available in a future version.
+
+If called before `init()`, with an invalid event name, or when the queue is full, the call is silently ignored (no error thrown). Enable `debug: true` to see warnings in the console.
+
 ### `getClient(): UserpulseInstance`
 
 Returns the current SDK instance. Throws if `init()` has not been called.

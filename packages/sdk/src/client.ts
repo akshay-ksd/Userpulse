@@ -70,4 +70,37 @@ export class UserpulseClient implements UserpulseInstance {
       persistAnonymousId(this.anonymousId);
     }
   }
+
+  track(eventName: string, properties?: Record<string, unknown>): void {
+    try {
+      if (typeof eventName !== 'string' || eventName.trim() === '') {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: track() requires a non-empty event name.');
+        }
+        return;
+      }
+
+      if (this.queue.length >= this.config.maxQueueSize) {
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: Event queue is full. Event dropped.');
+        }
+        return;
+      }
+
+      const event: UserpulseEvent = {
+        eventId: generateUUID(),
+        eventName,
+        timestamp: new Date().toISOString(),
+        anonymousId: this.anonymousId,
+        sdkVersion: this.sdkVersion,
+        ...(properties !== undefined && { properties }),
+      };
+
+      this.queue.push(event);
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Unexpected error in track().');
+      }
+    }
+  }
 }

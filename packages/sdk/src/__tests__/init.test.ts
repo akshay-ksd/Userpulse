@@ -1,9 +1,17 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { init, getClient, _reset, SDK_VERSION } from '../index.js';
 
 describe('SDK initialization', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('init() with valid apiKey returns an initialized instance', () => {

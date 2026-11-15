@@ -59,6 +59,18 @@ export class UserpulseClient implements UserpulseInstance {
   /** @internal */
   readonly queue: UserpulseEvent[] = [];
 
+  /** @internal */
+  private flushTimer: ReturnType<typeof setInterval> | null = null;
+
+  /** @internal */
+  private flushing: boolean = false;
+
+  /** @internal */
+  private boundBeforeUnload: (() => void) | null = null;
+
+  /** @internal */
+  private boundVisibilityChange: (() => void) | null = null;
+
   constructor(userConfig: UserpulseConfig) {
     if (!userConfig || typeof userConfig.apiKey !== 'string' || userConfig.apiKey.trim() === '') {
       throw new Error('UserpulseSDK: apiKey is required');
@@ -73,6 +85,9 @@ export class UserpulseClient implements UserpulseInstance {
       this.anonymousId = generateUUID();
       persistAnonymousId(this.anonymousId);
     }
+
+    this.startAutoFlush();
+    this.addLifecycleListeners();
   }
 
   track(eventName: string, properties?: Record<string, unknown>): void {
@@ -102,6 +117,7 @@ export class UserpulseClient implements UserpulseInstance {
       };
 
       this.queue.push(event);
+      this.flushIfNeeded();
     } catch {
       if (this.config.debug) {
         console.warn('UserpulseSDK: Unexpected error in track().');
@@ -134,6 +150,7 @@ export class UserpulseClient implements UserpulseInstance {
       };
 
       this.queue.push(event);
+      this.flushIfNeeded();
     } catch {
       if (this.config.debug) {
         console.warn('UserpulseSDK: Unexpected error in page().');
@@ -169,6 +186,128 @@ export class UserpulseClient implements UserpulseInstance {
       if (this.config.debug) {
         console.warn('UserpulseSDK: Unexpected error in reset().');
       }
+    }
+  }
+
+  async flush(): Promise<void> {
+    if (this.queue.length === 0 || this.flushing) {
+      return;
+    }
+
+    this.flushing = true;
+    try {
+      const batch = this.queue.splice(0, this.queue.length);
+
+      try {
+        const response = await fetch(this.config.endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${this.config.apiKey}`,
+          },
+          body: JSON.stringify({ batch }),
+          keepalive: true,
+        });
+
+        if (!response.ok) {
+          this.requeueEvents(batch);
+          if (this.config.debug) {
+            console.warn(`UserpulseSDK: Flush failed with status ${response.status}.`);
+          }
+        }
+      } catch {
+        this.requeueEvents(batch);
+        if (this.config.debug) {
+          console.warn('UserpulseSDK: Flush failed due to a network error.');
+        }
+      }
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Unexpected error in flush().');
+      }
+    } finally {
+      this.flushing = false;
+    }
+  }
+
+  destroy(): void {
+    try {
+      this.stopAutoFlush();
+      this.removeLifecycleListeners();
+      void this.flush();
+    } catch {
+      if (this.config.debug) {
+        console.warn('UserpulseSDK: Unexpected error in destroy().');
+      }
+    }
+  }
+
+  /** @internal */
+  private requeueEvents(events: UserpulseEvent[]): void {
+    const available = this.config.maxQueueSize - this.queue.length;
+    if (available > 0) {
+      const toRequeue = events.slice(0, available);
+      this.queue.unshift(...toRequeue);
+    }
+  }
+
+  /** @internal */
+  private flushIfNeeded(): void {
+    const threshold = Math.max(1, Math.floor(this.config.maxQueueSize / 2));
+    if (this.queue.length >= threshold) {
+      void this.flush();
+    }
+  }
+
+  /** @internal */
+  private startAutoFlush(): void {
+    if (this.config.flushInterval > 0) {
+      this.flushTimer = setInterval(() => {
+        void this.flush();
+      }, this.config.flushInterval);
+    }
+  }
+
+  /** @internal */
+  private stopAutoFlush(): void {
+    if (this.flushTimer !== null) {
+      clearInterval(this.flushTimer);
+      this.flushTimer = null;
+    }
+  }
+
+  /** @internal */
+  private addLifecycleListeners(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    this.boundBeforeUnload = () => {
+      void this.flush();
+    };
+    this.boundVisibilityChange = () => {
+      if (document.hidden) {
+        void this.flush();
+      }
+    };
+
+    window.addEventListener('beforeunload', this.boundBeforeUnload);
+    document.addEventListener('visibilitychange', this.boundVisibilityChange);
+  }
+
+  /** @internal */
+  private removeLifecycleListeners(): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      return;
+    }
+
+    if (this.boundBeforeUnload) {
+      window.removeEventListener('beforeunload', this.boundBeforeUnload);
+      this.boundBeforeUnload = null;
+    }
+    if (this.boundVisibilityChange) {
+      document.removeEventListener('visibilitychange', this.boundVisibilityChange);
+      this.boundVisibilityChange = null;
     }
   }
 }

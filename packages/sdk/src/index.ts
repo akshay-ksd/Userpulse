@@ -59,7 +59,26 @@ export function reset(): void {
   currentClient.reset();
 }
 
+export async function flush(): Promise<void> {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before flush().');
+    return;
+  }
+  await currentClient.flush();
+}
+
+export function destroy(): void {
+  if (!currentClient) {
+    return;
+  }
+  currentClient.destroy();
+  currentClient = null;
+}
+
 /** @internal — reset module state for tests */
 export function _reset(): void {
+  if (currentClient) {
+    currentClient.destroy();
+  }
   currentClient = null;
 }

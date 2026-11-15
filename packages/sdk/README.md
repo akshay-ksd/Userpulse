@@ -63,7 +63,7 @@ track('button_clicked', { buttonId: 'signup-cta', page: '/home' });
 - `eventName` — A non-empty string identifying the action (e.g. `"signup"`, `"purchase"`, `"feature_used"`).
 - `properties` — Optional structured data attached to the event.
 
-Each event is assigned a unique `eventId`, an ISO 8601 `timestamp`, and the current `anonymousId`. Events are queued locally; flushing to the server will be available in a future version.
+Each event is assigned a unique `eventId`, an ISO 8601 `timestamp`, and the current `anonymousId`. Events are queued locally and flushed automatically (see [Batching and flushing](#batching-and-flushing)).
 
 If called before `init()`, with an invalid event name, or when the queue is full, the call is silently ignored (no error thrown). Enable `debug: true` to see warnings in the console.
 
@@ -124,6 +124,32 @@ After `reset()`, the `userId` is cleared, a new `anonymousId` is generated, and 
 2. **After `identify(userId)`:** Events carry both `anonymousId` and `userId`. The platform can link the anonymous history to the identified user.
 3. **After `reset()`:** The `userId` is cleared and a fresh `anonymousId` is generated. The user is anonymous again.
 
+### `flush(): Promise<void>`
+
+Send all queued events to the server immediately.
+
+```typescript
+import { flush } from '@userpulse/sdk';
+
+await flush();
+```
+
+Normally you don't need to call this — the SDK flushes automatically on a timer and when the queue reaches half capacity. Use `flush()` when you need to guarantee delivery before a specific point (e.g. before navigating away in a single-page app).
+
+If the network request fails, events are returned to the queue and retried on the next flush. `flush()` never throws.
+
+### `destroy(): void`
+
+Stop the SDK, clear the auto-flush timer, and send any remaining events.
+
+```typescript
+import { destroy } from '@userpulse/sdk';
+
+destroy();
+```
+
+Call this when your application is shutting down or when the SDK is no longer needed. After `destroy()`, calling other SDK methods will log a warning.
+
 ### `getClient(): UserpulseInstance`
 
 Returns the current SDK instance. Throws if `init()` has not been called.
@@ -131,3 +157,15 @@ Returns the current SDK instance. Throws if `init()` has not been called.
 ### `SDK_VERSION`
 
 The SDK version string constant.
+
+## Batching and flushing
+
+Events are buffered in memory and sent to the server in batches:
+
+- **Auto-flush on timer:** Events are flushed every `flushInterval` milliseconds (default: 30 seconds).
+- **Auto-flush on threshold:** When the queue reaches half of `maxQueueSize` (default: 50 events), a flush is triggered automatically.
+- **Page lifecycle:** In browsers, the SDK flushes on `beforeunload` and `visibilitychange` (tab hidden) to minimize data loss on navigation.
+- **Queue limit:** The queue holds at most `maxQueueSize` events. Events tracked when the queue is full are silently dropped.
+- **Network failures:** If a flush fails (network error or non-2xx response), events are returned to the queue and retried on the next flush. Failures never throw or block the application.
+- **Explicit flush:** Call `flush()` to send events immediately.
+- **Cleanup:** Call `destroy()` to stop the timer and send remaining events.

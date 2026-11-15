@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 39 |
+| Not Started | 36 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 17 |
-| Overall completion | 30% |
+| Done | 19 |
+| Overall completion | 34% |
 
 **Last updated:** 2026-11-15
 
@@ -94,8 +94,8 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-015 | Track a product event | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-016 | Identify a user | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-017 | Track page views | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
-| US-018 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
-| US-019 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-018 | Reset user identity | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
+| US-019 | Batch and flush events | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-020 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-05 Event Ingestion and Processing
@@ -807,6 +807,79 @@ Create or update one subsection per story when implementation starts. Keep entri
 **Completion note**
 - All four acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
 
+### US-019 — Batch and flush events
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-019-batch-flush-events.md`
+
+**Acceptance criteria**
+- [x] Events are buffered in a bounded queue. — Existing `queue` with `maxQueueSize` (from US-015).
+- [x] The SDK flushes when configured limits or conditions are met. — Auto-flush on `flushInterval` timer + threshold flush at half `maxQueueSize` + browser `beforeunload`/`visibilitychange`.
+- [x] A developer can request an explicit flush. — `flush()` on client and top-level export.
+- [x] Queue limits prevent unbounded memory growth. — Events dropped when queue at `maxQueueSize`; failed flushes requeue up to `maxQueueSize`.
+- [x] Network failures do not block the customer application. — All errors caught; failed events requeued for retry; `flush()` never throws.
+
+**Implementation notes**
+- SDK: Added `flush()`, `destroy()` to `UserpulseClient` and top-level exports.
+- `flush()` drains queue, POSTs `{ batch: [...] }` with Bearer token, requeues on failure.
+- Auto-flush: `setInterval` on `flushInterval`, threshold flush at `floor(maxQueueSize/2)`.
+- Browser hooks: `beforeunload` + `visibilitychange` (with `typeof window` guard for SSR).
+- `destroy()` stops timer, removes listeners, fires final flush.
+- Added `"DOM"` to SDK tsconfig lib for `window`/`document` types.
+- Updated existing track/page/identify/init tests to mock `fetch` and use fake timers (required since flush is now integrated).
+- Key files: `packages/sdk/src/client.ts`, `packages/sdk/src/types.ts`, `packages/sdk/src/index.ts`, `packages/sdk/src/__tests__/flush.test.ts`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 77 passed (21 new flush tests).
+- [x] Build: `pnpm --filter @userpulse/sdk build` — pass.
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm --filter @userpulse/sdk typecheck` — pass (pre-existing API Prisma type issues unrelated).
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Server-side ingestion endpoint (`/v1/events`) does not exist yet (US-021).
+- No exponential backoff on retries — simple requeue for next flush cycle.
+- No persistent queue across page loads — in-memory only.
+
+**Completion note**
+- All five acceptance criteria verified by automated unit tests and build checks on 2026-11-15; results recorded above.
+
+### US-018 — Reset user identity
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-15
+- **Last updated:** 2026-11-15
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-018-reset-user-identity.md`
+
+**Acceptance criteria**
+- [x] The SDK provides a reset method. — `reset()` on `UserpulseClient`, interface, and top-level export (implemented in US-016).
+- [x] Reset clears the active identified user reference. — Clears `userId`, `traits`, generates new `anonymousId`.
+- [x] Subsequent events use an anonymous or newly supplied identity. — Verified by tests in `identify.test.ts`.
+- [x] The behavior is documented and tested. — README docs and 6+ dedicated tests.
+
+**Implementation notes**
+- All functionality was implemented during US-016 (Identify a user). No additional code changes needed.
+- Key files: `packages/sdk/src/client.ts`, `packages/sdk/src/index.ts`, `packages/sdk/src/__tests__/identify.test.ts`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 56 passed (includes reset tests).
+- [x] Build: `pnpm build` — pass.
+- [x] Lint: `pnpm lint` — pass.
+
+**Blockers / follow-up**
+- None.
+
+**Completion note**
+- All four acceptance criteria already satisfied by US-016 implementation; independently verified on 2026-11-15.
+
 ### Story update template
 
 Copy this section for a story when work begins:
@@ -847,6 +920,8 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-15 | US-019 | Batch and flush events: `flush()` and `destroy()` methods, auto-flush timer, threshold flush, browser lifecycle hooks, network error handling with requeue, 21 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |
+| 2026-11-15 | US-018 | Reset user identity: already implemented in US-016; `reset()` method, tests, and docs all in place; formally verified and marked Done | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-017 | Track page views: `page()` method on `UserpulseClient` and top-level export, `$page` event with optional name and properties, 13 unit tests, README docs with privacy note; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-016 | Identify a user: `identify()` and `reset()` methods on `UserpulseClient` and top-level exports, `track()` events include `userId` after identify, 16 unit tests, README docs with anonymous-to-identified behavior; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-015 | Track a product event: `track()` method on `UserpulseClient` and top-level export, event queuing with validation, 13 unit tests, README docs; all acceptance criteria verified | Not Started → Done | Claude Code agent |

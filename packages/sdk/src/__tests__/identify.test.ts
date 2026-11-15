@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { init, identify, reset, _reset } from '../index.js';
 import { UserpulseClient } from '../client.js';
 
@@ -9,6 +9,14 @@ function getQueue(client: ReturnType<typeof init>): unknown[] {
 describe('identify()', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('sets userId on the client', () => {
@@ -90,6 +98,14 @@ describe('identify()', () => {
 describe('reset()', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('clears userId', () => {
@@ -134,6 +150,14 @@ describe('reset()', () => {
 describe('top-level identify()', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('does not throw when called before init()', () => {
@@ -156,6 +180,14 @@ describe('top-level identify()', () => {
 describe('top-level reset()', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('does not throw when called before init()', () => {

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { init, page, _reset } from '../index.js';
 import { UserpulseClient } from '../client.js';
 
@@ -12,6 +12,14 @@ function getQueue(client: ReturnType<typeof init>): unknown[] {
 describe('page()', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('queues a $page event with name', () => {
@@ -95,19 +103,29 @@ describe('page()', () => {
   });
 
   it('drops events when queue is full', () => {
-    const client = init({ apiKey: 'test-key', maxQueueSize: 2 });
+    globalThis.fetch = vi.fn().mockImplementation(() => new Promise(() => {}));
+    const client = init({ apiKey: 'test-key', maxQueueSize: 3 });
+    // First event triggers threshold flush, drains queue, flushing stays true
     client.page('Page1');
     client.page('Page2');
-    client.page('Page3_dropped');
+    client.page('Page3');
+    client.page('Page4');
+    // queue=[Page2, Page3, Page4] at capacity
+    client.page('Page5_dropped');
 
     const queue = getQueue(client);
-    expect(queue).toHaveLength(2);
+    expect(queue).toHaveLength(3);
   });
 
   it('logs debug warning when queue is full and debug is true', () => {
+    globalThis.fetch = vi.fn().mockImplementation(() => new Promise(() => {}));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const client = init({ apiKey: 'test-key', maxQueueSize: 1, debug: true });
+    const client = init({ apiKey: 'test-key', maxQueueSize: 2, debug: true });
+    // Threshold flush drains after first event
     client.page('First');
+    client.page('Second');
+    client.page('Third');
+    // queue=[Second, Third] at capacity
     client.page('Dropped');
 
     expect(warnSpy).toHaveBeenCalledWith('UserpulseSDK: Event queue is full. Event dropped.');
@@ -140,6 +158,14 @@ describe('page()', () => {
 describe('top-level page()', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('does not throw when called before init()', () => {

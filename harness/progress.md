@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 23 |
+| Not Started | 22 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 32 |
-| Overall completion | 57% |
+| Done | 33 |
+| Overall completion | 59% |
 
 **Last updated:** 2026-11-16
 
@@ -124,7 +124,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-030 | View event activity | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-031 | View active users | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-032 | View feature adoption | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
-| US-033 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-033 | View feature usage trends | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-034 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-035 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
@@ -1473,6 +1473,44 @@ A story may be marked **Done** only when:
 **Blockers / follow-up**
 - No e2e tests (PostgreSQL not available in this cloud environment).
 - Feature usage trends (US-033) and feature comparison (US-034) are next.
+- Custom date range deferred to US-035.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-16; results recorded above.
+
+### US-033 — View feature usage trends
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-16
+- **Last updated:** 2026-11-16
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-033-view-feature-usage-trends.md`
+
+**Acceptance criteria**
+- [x] Usage is displayed over time for a selected feature. — `GET .../analytics/feature-usage-trends?featureId=...&startDate=...&endDate=...` returns daily counts; `FeatureUsageTrendsSection` displays bar chart.
+- [x] A supported date range can be selected. — Period presets (7d/30d/90d) reuse existing pattern.
+- [x] Time buckets are consistent with the range. — Daily buckets for all ranges, zero-filled, matching `getEventActivity` pattern.
+- [x] No-data periods are represented clearly. — Zero-count days rendered as empty bars; "No events recorded" message when total is 0.
+
+**Implementation notes**
+- API: Added `getFeatureUsageTrends()` to `AnalyticsService` — verifies membership/project/feature, fetches mapped event names from `FeatureEventMapping`, queries daily event counts with `Prisma.join()` for safe IN clause, zero-fills the daily array.
+- API: Added `featureUsageTrendsQuerySchema` extending date validation with required `featureId`. New `GET feature-usage-trends` endpoint on `AnalyticsController`.
+- Web: Added `FeatureUsageTrendsSection` component with feature dropdown (ACTIVE features only), period presets, total count card, and daily bar chart. Placed between Feature Adoption and Features sections.
+- Key files: `apps/api/src/analytics/analytics.service.ts`, `analytics.controller.ts`, `event-activity-query.dto.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 187 passed (8 new: 6 service + 2 controller for feature usage trends).
+- [ ] Integration / E2E tests: not run (no PostgreSQL in this environment).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- No e2e tests (PostgreSQL not available in this cloud environment).
+- Feature comparison/ranking is US-034.
 - Custom date range deferred to US-035.
 
 **Completion note**

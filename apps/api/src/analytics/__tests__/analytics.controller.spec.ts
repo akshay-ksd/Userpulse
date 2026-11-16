@@ -9,6 +9,7 @@ describe('AnalyticsController', () => {
     getEventActivity: ReturnType<typeof vi.fn>;
     getActiveUsers: ReturnType<typeof vi.fn>;
     getFeatureAdoption: ReturnType<typeof vi.fn>;
+    getFeatureUsageTrends: ReturnType<typeof vi.fn>;
   };
   const user = { id: 'user1', email: 'test@example.com', name: 'Test' };
 
@@ -17,6 +18,7 @@ describe('AnalyticsController', () => {
       getEventActivity: vi.fn(),
       getActiveUsers: vi.fn(),
       getFeatureAdoption: vi.fn(),
+      getFeatureUsageTrends: vi.fn(),
     };
     controller = new AnalyticsController(
       service as unknown as AnalyticsService,
@@ -158,6 +160,52 @@ describe('AnalyticsController', () => {
     await expect(
       controller.getFeatureAdoption(user as any, 'org1', 'proj1', {
         endDate: '2026-11-15',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('returns feature usage trends for valid params', async () => {
+    const result = {
+      featureId: 'f1',
+      featureName: 'Login',
+      total: 42,
+      daily: [{ date: '2026-11-15', count: 42 }],
+      startDate: '2026-11-15',
+      endDate: '2026-11-15',
+    };
+    service.getFeatureUsageTrends.mockResolvedValue(result);
+
+    const response = await controller.getFeatureUsageTrends(
+      user as any,
+      'org1',
+      'proj1',
+      { startDate: '2026-11-15', endDate: '2026-11-15', featureId: 'f1' },
+    );
+
+    expect(response).toEqual(result);
+    expect(service.getFeatureUsageTrends).toHaveBeenCalledWith(
+      'org1',
+      'proj1',
+      'user1',
+      'f1',
+      '2026-11-15',
+      '2026-11-15',
+    );
+  });
+
+  it('throws BadRequestException for missing featureId on feature-usage-trends', async () => {
+    await expect(
+      controller.getFeatureUsageTrends(user as any, 'org1', 'proj1', {
+        startDate: '2026-11-15',
+        endDate: '2026-11-15',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('throws BadRequestException for missing dates on feature-usage-trends', async () => {
+    await expect(
+      controller.getFeatureUsageTrends(user as any, 'org1', 'proj1', {
+        featureId: 'f1',
       }),
     ).rejects.toThrow(BadRequestException);
   });

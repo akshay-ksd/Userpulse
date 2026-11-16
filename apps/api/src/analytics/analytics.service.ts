@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@userpulse/database';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface DailyCount {
@@ -41,6 +42,15 @@ export interface FeatureAdoptionResult {
   startDate: string;
   endDate: string;
   definition: string;
+}
+
+export interface FeatureUsageTrendsResult {
+  featureId: string;
+  featureName: string;
+  total: number;
+  daily: DailyCount[];
+  startDate: string;
+  endDate: string;
 }
 
 @Injectable()
@@ -285,6 +295,104 @@ export class AnalyticsService {
       startDate,
       endDate,
       definition: FEATURE_ADOPTION_DEFINITION,
+    };
+  }
+
+  async getFeatureUsageTrends(
+    orgId: string,
+    projectId: string,
+    userId: string,
+    featureId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<FeatureUsageTrendsResult> {
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: {
+        organizationId_userId: { organizationId: orgId, userId },
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException();
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, organizationId: orgId },
+    });
+
+    if (!project) {
+      throw new NotFoundException();
+    }
+
+    const feature = await this.prisma.feature.findFirst({
+      where: { id: featureId, projectId, status: 'ACTIVE' },
+    });
+
+    if (!feature) {
+      throw new NotFoundException();
+    }
+
+    const mappings = await this.prisma.featureEventMapping.findMany({
+      where: { featureId, projectId },
+    });
+
+    const startDateTime = new Date(`${startDate}T00:00:00.000Z`);
+    const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
+
+    let total = 0;
+    const dailyMap = new Map<string, number>();
+
+    if (mappings.length > 0) {
+      const eventNames = mappings.map((m) => m.eventName);
+
+      const totalRows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+        SELECT COUNT(*)::bigint AS count
+        FROM events
+        WHERE "project_id" = ${projectId}
+          AND "validation_status" = 'VALID'
+          AND "event_name" IN (${Prisma.join(eventNames)})
+          AND "event_timestamp" >= ${startDateTime}
+          AND "event_timestamp" <= ${endDateTime}
+      `;
+
+      total = Number(totalRows[0]?.count ?? 0);
+
+      const dailyRows = await this.prisma.$queryRaw<
+        Array<{ day: Date; count: bigint }>
+      >`
+        SELECT DATE("event_timestamp") AS day, COUNT(*)::bigint AS count
+        FROM events
+        WHERE "project_id" = ${projectId}
+          AND "validation_status" = 'VALID'
+          AND "event_name" IN (${Prisma.join(eventNames)})
+          AND "event_timestamp" >= ${startDateTime}
+          AND "event_timestamp" <= ${endDateTime}
+        GROUP BY DATE("event_timestamp")
+        ORDER BY day
+      `;
+
+      for (const row of dailyRows) {
+        const dateStr = new Date(row.day).toISOString().slice(0, 10);
+        dailyMap.set(dateStr, Number(row.count));
+      }
+    }
+
+    const daily: DailyCount[] = [];
+    const cursor = new Date(startDateTime);
+    const end = new Date(endDateTime);
+    while (cursor <= end) {
+      const dateStr = cursor.toISOString().slice(0, 10);
+      daily.push({ date: dateStr, count: dailyMap.get(dateStr) ?? 0 });
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+
+    return {
+      featureId: feature.id,
+      featureName: feature.name,
+      total,
+      daily,
+      startDate,
+      endDate,
     };
   }
 }

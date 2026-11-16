@@ -9,13 +9,16 @@ import { CurrentUser } from '@nestjs/authentication';
 import type { AuthUser } from '../auth/auth-user.js';
 import {
   eventActivityQuerySchema,
+  featureUsageTrendsQuerySchema,
   type EventActivityQueryDto,
+  type FeatureUsageTrendsQueryDto,
 } from './event-activity-query.dto.js';
 import {
   AnalyticsService,
   type ActiveUsersResult,
   type EventActivityResult,
   type FeatureAdoptionResult,
+  type FeatureUsageTrendsResult,
 } from './analytics.service.js';
 
 @Controller('organizations/:orgId/projects/:projectId/analytics')
@@ -89,6 +92,31 @@ export class AnalyticsController {
       orgId,
       projectId,
       user.id,
+      startDate,
+      endDate,
+    );
+  }
+
+  @Get('feature-usage-trends')
+  async getFeatureUsageTrends(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+    @Query() query: Record<string, string>,
+  ): Promise<FeatureUsageTrendsResult> {
+    const parsed = featureUsageTrendsQuerySchema.safeParse(query);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map((i) => i.message).join('; '),
+      );
+    }
+
+    const { startDate, endDate, featureId } = parsed.data;
+    return this.analyticsService.getFeatureUsageTrends(
+      orgId,
+      projectId,
+      user.id,
+      featureId,
       startDate,
       endDate,
     );

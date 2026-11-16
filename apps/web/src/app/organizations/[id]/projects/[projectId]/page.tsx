@@ -818,6 +818,196 @@ function FeatureAdoptionSection({ orgId, projectId }: { orgId: string; projectId
   );
 }
 
+type FeatureUsageTrendsData = {
+  featureId: string;
+  featureName: string;
+  total: number;
+  daily: Array<{ date: string; count: number }>;
+  startDate: string;
+  endDate: string;
+};
+
+type FeatureSummary = { id: string; name: string; status: string };
+
+function FeatureUsageTrendsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [period, setPeriod] = useState<PeriodPreset>('7d');
+  const [features, setFeatures] = useState<FeatureSummary[]>([]);
+  const [featuresLoading, setFeaturesLoading] = useState(true);
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string>('');
+  const [data, setData] = useState<FeatureUsageTrendsData | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFeatures() {
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/features`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          const all = (await res.json()) as FeatureSummary[];
+          const active = all.filter((f) => f.status === 'ACTIVE');
+          setFeatures(active);
+          if (active.length > 0 && !selectedFeatureId) {
+            setSelectedFeatureId(active[0].id);
+          }
+        }
+      } catch {
+        // features load failure is not critical
+      } finally {
+        if (!cancelled) setFeaturesLoading(false);
+      }
+    }
+
+    void loadFeatures();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!selectedFeatureId) return;
+
+    let cancelled = false;
+    const { startDate, endDate } = getDateRange(period);
+
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/analytics/feature-usage-trends?startDate=${startDate}&endDate=${endDate}&featureId=${selectedFeatureId}`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setData(await res.json());
+        } else {
+          setError('Failed to load feature usage trends.');
+        }
+      } catch {
+        if (!cancelled) setError('Network error loading feature usage trends.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId, period, selectedFeatureId]);
+
+  const maxCount = data ? Math.max(...data.daily.map((d) => d.count), 1) : 1;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Feature usage trends</h2>
+        <div className="flex gap-1">
+          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                period === p
+                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {featuresLoading ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading features…</p>
+      ) : features.length === 0 ? (
+        <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            No active features. Create and map features to see usage trends.
+          </p>
+        </div>
+      ) : (
+        <>
+          <select
+            value={selectedFeatureId}
+            onChange={(e) => setSelectedFeatureId(e.target.value)}
+            className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white/[.2] dark:text-zinc-50 dark:focus:ring-white/20"
+          >
+            {features.map((f) => (
+              <option key={f.id} value={f.id}>
+                {f.name}
+              </option>
+            ))}
+          </select>
+
+          {loading && (
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading usage trends…</p>
+          )}
+
+          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+          {!loading && !error && data && (
+            <div className="flex flex-col gap-4">
+              <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {formatDateRange(data.startDate, data.endDate)}
+                </p>
+                <p className="mt-1 text-3xl font-semibold text-black dark:text-zinc-50">
+                  {data.total.toLocaleString()}
+                </p>
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  event{data.total === 1 ? '' : 's'} for {data.featureName}
+                </p>
+              </div>
+
+              {data.total === 0 ? (
+                <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                    No events recorded for this feature in the selected period.
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+                  <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    Daily breakdown
+                  </p>
+                  <div className="flex items-end gap-px" style={{ height: '80px' }}>
+                    {data.daily.map((d) => (
+                      <div
+                        key={d.date}
+                        className="group relative flex-1"
+                        style={{ height: '100%' }}
+                      >
+                        <div
+                          className="absolute bottom-0 w-full rounded-t bg-black/80 dark:bg-zinc-300 transition-colors group-hover:bg-black dark:group-hover:bg-zinc-100"
+                          style={{
+                            height: `${Math.max((d.count / maxCount) * 100, d.count > 0 ? 4 : 0)}%`,
+                            minHeight: d.count > 0 ? '2px' : '0',
+                          }}
+                        />
+                        <div className="pointer-events-none absolute -top-8 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-black px-2 py-1 text-xs text-white group-hover:block dark:bg-zinc-200 dark:text-black">
+                          {d.date}: {d.count.toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -1853,6 +2043,10 @@ function ProjectDetail() {
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
       <FeatureAdoptionSection orgId={orgId} projectId={project.id} />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <FeatureUsageTrendsSection orgId={orgId} projectId={project.id} />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

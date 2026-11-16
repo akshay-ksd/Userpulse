@@ -11,6 +11,10 @@ function makePrisma() {
       findFirst: vi.fn(),
     },
     feature: {
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+    },
+    featureEventMapping: {
       findMany: vi.fn(),
     },
     event: {
@@ -492,5 +496,172 @@ describe('AnalyticsService — getFeatureAdoption', () => {
 
     expect(result.features.map((f) => f.featureName)).toEqual(['B', 'C', 'A']);
     expect(result.features.map((f) => f.adoptionRate)).toEqual([50, 30, 10]);
+  });
+});
+
+describe('AnalyticsService — getFeatureUsageTrends', () => {
+  let service: AnalyticsService;
+  let prisma: ReturnType<typeof makePrisma>;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AnalyticsService(prisma as any);
+  });
+
+  it('throws NotFoundException when user is not a member', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.getFeatureUsageTrends(
+        'org1',
+        'proj1',
+        'user1',
+        'f1',
+        '2026-11-01',
+        '2026-11-07',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws NotFoundException when project does not exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getFeatureUsageTrends(
+        'org1',
+        'proj1',
+        'user1',
+        'f1',
+        '2026-11-01',
+        '2026-11-07',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws NotFoundException when feature does not exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.feature.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getFeatureUsageTrends(
+        'org1',
+        'proj1',
+        'user1',
+        'f1',
+        '2026-11-01',
+        '2026-11-07',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('returns daily counts with zero-fill', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.feature.findFirst.mockResolvedValue({
+      id: 'f1',
+      projectId: 'proj1',
+      name: 'Login',
+      status: 'ACTIVE',
+    });
+    prisma.featureEventMapping.findMany.mockResolvedValue([
+      {
+        id: 'm1',
+        featureId: 'f1',
+        projectId: 'proj1',
+        eventName: 'login_click',
+      },
+    ]);
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ count: BigInt(8) }])
+      .mockResolvedValueOnce([
+        { day: new Date('2026-11-02'), count: BigInt(5) },
+        { day: new Date('2026-11-04'), count: BigInt(3) },
+      ]);
+
+    const result = await service.getFeatureUsageTrends(
+      'org1',
+      'proj1',
+      'user1',
+      'f1',
+      '2026-11-01',
+      '2026-11-05',
+    );
+
+    expect(result.featureId).toBe('f1');
+    expect(result.featureName).toBe('Login');
+    expect(result.total).toBe(8);
+    expect(result.daily).toEqual([
+      { date: '2026-11-01', count: 0 },
+      { date: '2026-11-02', count: 5 },
+      { date: '2026-11-03', count: 0 },
+      { date: '2026-11-04', count: 3 },
+      { date: '2026-11-05', count: 0 },
+    ]);
+  });
+
+  it('returns total 0 and zero-filled days when no mappings exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.feature.findFirst.mockResolvedValue({
+      id: 'f1',
+      projectId: 'proj1',
+      name: 'Empty Feature',
+      status: 'ACTIVE',
+    });
+    prisma.featureEventMapping.findMany.mockResolvedValue([]);
+
+    const result = await service.getFeatureUsageTrends(
+      'org1',
+      'proj1',
+      'user1',
+      'f1',
+      '2026-11-10',
+      '2026-11-12',
+    );
+
+    expect(result.total).toBe(0);
+    expect(result.daily).toEqual([
+      { date: '2026-11-10', count: 0 },
+      { date: '2026-11-11', count: 0 },
+      { date: '2026-11-12', count: 0 },
+    ]);
+  });
+
+  it('returns feature name and id', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.feature.findFirst.mockResolvedValue({
+      id: 'f1',
+      projectId: 'proj1',
+      name: 'Search',
+      status: 'ACTIVE',
+    });
+    prisma.featureEventMapping.findMany.mockResolvedValue([]);
+
+    const result = await service.getFeatureUsageTrends(
+      'org1',
+      'proj1',
+      'user1',
+      'f1',
+      '2026-11-15',
+      '2026-11-15',
+    );
+
+    expect(result.featureId).toBe('f1');
+    expect(result.featureName).toBe('Search');
   });
 });

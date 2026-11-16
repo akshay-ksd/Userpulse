@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 24 |
+| Not Started | 23 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 31 |
-| Overall completion | 55% |
+| Done | 32 |
+| Overall completion | 57% |
 
 **Last updated:** 2026-11-16
 
@@ -123,7 +123,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 |---|---|---|---:|---|---|---|---|
 | US-030 | View event activity | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-031 | View active users | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
-| US-032 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-032 | View feature adoption | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-033 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-034 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-035 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1437,6 +1437,42 @@ A story may be marked **Done** only when:
 **Blockers / follow-up**
 - No e2e tests (PostgreSQL not available in this cloud environment).
 - Feature adoption (US-032) will use active-user count as denominator.
+- Custom date range deferred to US-035.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-16; results recorded above.
+
+### US-032 — View feature adoption
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-16
+- **Last updated:** 2026-11-16
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-032-view-feature-adoption.md`
+
+**Acceptance criteria**
+- [x] Adoption is unique active users who used the feature divided by total active users for the same project and period. — `getFeatureAdoption()` joins events with feature_event_mappings, counts distinct COALESCE(userId, anonymousId) per feature, divides by total active users.
+- [x] The result is displayed as a percentage. — `adoptionRate` rounded to one decimal place (e.g., 50.0%); displayed in UI table.
+- [x] Numerator, denominator, and period can be inspected. — API returns `featureUsers`, `totalUsers`, `startDate`, `endDate` per feature; UI shows "X / Y" in Users column.
+- [x] Results match deterministic test data. — Unit tests verify exact adoption rates with mocked data, including zero-denominator edge case.
+
+**Implementation notes**
+- API: Added `getFeatureAdoption()` to `AnalyticsService` with raw SQL JOIN between events and feature_event_mappings for per-feature user counts. Added `GET .../analytics/feature-adoption` endpoint reusing `eventActivityQuerySchema`.
+- Web: Added `FeatureAdoptionSection` component to project detail page between ActiveUsersSection and FeaturesSection. Shows table with feature name, adoption %, and users ratio. Handles loading, error, empty (no features), and zero-users states.
+- No database migration needed — uses existing Event and FeatureEventMapping tables.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 178 passed (9 new: 7 service + 2 controller).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- No e2e tests (PostgreSQL not available in this cloud environment).
+- Feature usage trends (US-033) and feature comparison (US-034) are next.
 - Custom date range deferred to US-035.
 
 **Completion note**

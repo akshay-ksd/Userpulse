@@ -8,11 +8,16 @@ describe('AnalyticsController', () => {
   let service: {
     getEventActivity: ReturnType<typeof vi.fn>;
     getActiveUsers: ReturnType<typeof vi.fn>;
+    getFeatureAdoption: ReturnType<typeof vi.fn>;
   };
   const user = { id: 'user1', email: 'test@example.com', name: 'Test' };
 
   beforeEach(() => {
-    service = { getEventActivity: vi.fn(), getActiveUsers: vi.fn() };
+    service = {
+      getEventActivity: vi.fn(),
+      getActiveUsers: vi.fn(),
+      getFeatureAdoption: vi.fn(),
+    };
     controller = new AnalyticsController(
       service as unknown as AnalyticsService,
     );
@@ -109,6 +114,49 @@ describe('AnalyticsController', () => {
   it('throws BadRequestException for missing dates on active-users', async () => {
     await expect(
       controller.getActiveUsers(user as any, 'org1', 'proj1', {
+        endDate: '2026-11-15',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('returns feature adoption for valid params', async () => {
+    const result = {
+      features: [
+        {
+          featureId: 'f1',
+          featureName: 'Login',
+          adoptionRate: 50,
+          featureUsers: 5,
+          totalUsers: 10,
+        },
+      ],
+      totalActiveUsers: 10,
+      startDate: '2026-11-15',
+      endDate: '2026-11-15',
+      definition: 'Feature adoption rate...',
+    };
+    service.getFeatureAdoption.mockResolvedValue(result);
+
+    const response = await controller.getFeatureAdoption(
+      user as any,
+      'org1',
+      'proj1',
+      { startDate: '2026-11-15', endDate: '2026-11-15' },
+    );
+
+    expect(response).toEqual(result);
+    expect(service.getFeatureAdoption).toHaveBeenCalledWith(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-15',
+      '2026-11-15',
+    );
+  });
+
+  it('throws BadRequestException for missing dates on feature-adoption', async () => {
+    await expect(
+      controller.getFeatureAdoption(user as any, 'org1', 'proj1', {
         endDate: '2026-11-15',
       }),
     ).rejects.toThrow(BadRequestException);

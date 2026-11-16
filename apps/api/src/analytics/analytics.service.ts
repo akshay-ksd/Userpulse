@@ -24,6 +24,25 @@ export interface ActiveUsersResult {
 const ACTIVE_USER_DEFINITION =
   'An active user is a distinct identified (userId) or anonymous (anonymousId) reference that generated at least one valid event during the selected period.';
 
+const FEATURE_ADOPTION_DEFINITION =
+  'Feature adoption rate is the percentage of active users who used the feature during the selected period. An active user is a distinct identified (userId) or anonymous (anonymousId) reference with at least one valid event.';
+
+export interface FeatureAdoptionEntry {
+  featureId: string;
+  featureName: string;
+  adoptionRate: number;
+  featureUsers: number;
+  totalUsers: number;
+}
+
+export interface FeatureAdoptionResult {
+  features: FeatureAdoptionEntry[];
+  totalActiveUsers: number;
+  startDate: string;
+  endDate: string;
+  definition: string;
+}
+
 @Injectable()
 export class AnalyticsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -174,6 +193,98 @@ export class AnalyticsService {
       startDate,
       endDate,
       definition: ACTIVE_USER_DEFINITION,
+    };
+  }
+
+  async getFeatureAdoption(
+    orgId: string,
+    projectId: string,
+    userId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<FeatureAdoptionResult> {
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: {
+        organizationId_userId: { organizationId: orgId, userId },
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException();
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, organizationId: orgId },
+    });
+
+    if (!project) {
+      throw new NotFoundException();
+    }
+
+    const startDateTime = new Date(`${startDate}T00:00:00.000Z`);
+    const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
+
+    const totalRows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT COALESCE("user_id", "anonymous_id"))::bigint AS count
+      FROM events
+      WHERE "project_id" = ${projectId}
+        AND "validation_status" = 'VALID'
+        AND "event_timestamp" >= ${startDateTime}
+        AND "event_timestamp" <= ${endDateTime}
+        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+    `;
+
+    const totalActiveUsers = Number(totalRows[0]?.count ?? 0);
+
+    const featureUserRows = await this.prisma.$queryRaw<
+      Array<{ feature_id: string; count: bigint }>
+    >`
+      SELECT fem."feature_id" AS feature_id,
+             COUNT(DISTINCT COALESCE(e."user_id", e."anonymous_id"))::bigint AS count
+      FROM events e
+      INNER JOIN feature_event_mappings fem
+        ON e."project_id" = fem."project_id" AND e."event_name" = fem."event_name"
+      WHERE e."project_id" = ${projectId}
+        AND e."validation_status" = 'VALID'
+        AND e."event_timestamp" >= ${startDateTime}
+        AND e."event_timestamp" <= ${endDateTime}
+        AND (e."user_id" IS NOT NULL OR e."anonymous_id" IS NOT NULL)
+      GROUP BY fem."feature_id"
+    `;
+
+    const featureUserMap = new Map<string, number>();
+    for (const row of featureUserRows) {
+      featureUserMap.set(row.feature_id, Number(row.count));
+    }
+
+    const activeFeatures = await this.prisma.feature.findMany({
+      where: { projectId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const features: FeatureAdoptionEntry[] = activeFeatures.map((f) => {
+      const featureUsers = featureUserMap.get(f.id) ?? 0;
+      const adoptionRate =
+        totalActiveUsers > 0
+          ? Math.round((featureUsers / totalActiveUsers) * 1000) / 10
+          : 0;
+      return {
+        featureId: f.id,
+        featureName: f.name,
+        adoptionRate,
+        featureUsers,
+        totalUsers: totalActiveUsers,
+      };
+    });
+
+    features.sort((a, b) => b.adoptionRate - a.adoptionRate);
+
+    return {
+      features,
+      totalActiveUsers,
+      startDate,
+      endDate,
+      definition: FEATURE_ADOPTION_DEFINITION,
     };
   }
 }

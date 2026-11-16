@@ -15,6 +15,7 @@ import {
   AnalyticsService,
   type ActiveUsersResult,
   type EventActivityResult,
+  type FeatureAdoptionResult,
 } from './analytics.service.js';
 
 @Controller('organizations/:orgId/projects/:projectId/analytics')
@@ -61,6 +62,30 @@ export class AnalyticsController {
 
     const { startDate, endDate } = parsed.data;
     return this.analyticsService.getActiveUsers(
+      orgId,
+      projectId,
+      user.id,
+      startDate,
+      endDate,
+    );
+  }
+
+  @Get('feature-adoption')
+  async getFeatureAdoption(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+    @Query() query: Record<string, string>,
+  ): Promise<FeatureAdoptionResult> {
+    const parsed = eventActivityQuerySchema.safeParse(query);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map((i) => i.message).join('; '),
+      );
+    }
+
+    const { startDate, endDate } = parsed.data;
+    return this.analyticsService.getFeatureAdoption(
       orgId,
       projectId,
       user.id,

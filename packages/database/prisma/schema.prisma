@@ -214,5 +214,6 @@ model Event {
   @@index([processingStatus, retryCount])
   @@unique([projectId, eventId])
   @@index([projectId, validationStatus])
+  @@index([projectId, eventTimestamp])
   @@map("events")
 }

@@ -370,6 +370,154 @@ function TrackingCredentials({ orgId, projectId }: { orgId: string; projectId: s
   );
 }
 
+type PeriodPreset = '7d' | '30d' | '90d';
+
+function getDateRange(preset: PeriodPreset): { startDate: string; endDate: string } {
+  const end = new Date();
+  const start = new Date();
+  const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
+  start.setUTCDate(start.getUTCDate() - days + 1);
+  return {
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+  };
+}
+
+function formatDateRange(startDate: string, endDate: string): string {
+  const start = new Date(startDate + 'T00:00:00Z');
+  const end = new Date(endDate + 'T00:00:00Z');
+  const opts: Intl.DateTimeFormatOptions = {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  };
+  return `${start.toLocaleDateString('en-US', opts)} – ${end.toLocaleDateString('en-US', opts)}`;
+}
+
+type EventActivityData = {
+  total: number;
+  daily: Array<{ date: string; count: number }>;
+  startDate: string;
+  endDate: string;
+};
+
+function EventActivitySection({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [period, setPeriod] = useState<PeriodPreset>('7d');
+  const [data, setData] = useState<EventActivityData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const { startDate, endDate } = getDateRange(period);
+
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/analytics/event-activity?startDate=${startDate}&endDate=${endDate}`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setData(await res.json());
+        } else {
+          setError('Failed to load event activity.');
+        }
+      } catch {
+        if (!cancelled) setError('Network error loading event activity.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId, period]);
+
+  const maxCount = data ? Math.max(...data.daily.map((d) => d.count), 1) : 1;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Event activity</h2>
+        <div className="flex gap-1">
+          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                period === p
+                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading event activity…</p>
+      )}
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {!loading && !error && data && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              {formatDateRange(data.startDate, data.endDate)}
+            </p>
+            <p className="mt-1 text-3xl font-semibold text-black dark:text-zinc-50">
+              {data.total.toLocaleString()}
+            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              total event{data.total === 1 ? '' : 's'}
+            </p>
+          </div>
+
+          {data.total === 0 ? (
+            <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                No events recorded in this period. Set up the Userpulse SDK to start tracking.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+              <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                Daily breakdown
+              </p>
+              <div className="flex items-end gap-px" style={{ height: '80px' }}>
+                {data.daily.map((d) => (
+                  <div key={d.date} className="group relative flex-1" style={{ height: '100%' }}>
+                    <div
+                      className="absolute bottom-0 w-full rounded-t bg-black/80 dark:bg-zinc-300 transition-colors group-hover:bg-black dark:group-hover:bg-zinc-100"
+                      style={{
+                        height: `${Math.max((d.count / maxCount) * 100, d.count > 0 ? 4 : 0)}%`,
+                        minHeight: d.count > 0 ? '2px' : '0',
+                      }}
+                    />
+                    <div className="pointer-events-none absolute -top-8 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-black px-2 py-1 text-xs text-white group-hover:block dark:bg-zinc-200 dark:text-black">
+                      {d.date}: {d.count.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -1393,6 +1541,10 @@ function ProjectDetail() {
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
       <EventCollectionStatus orgId={orgId} projectId={project.id} />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <EventActivitySection orgId={orgId} projectId={project.id} />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

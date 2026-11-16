@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 26 |
+| Not Started | 25 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 29 |
-| Overall completion | 52% |
+| Done | 30 |
+| Overall completion | 54% |
 
 **Last updated:** 2026-11-16
 
@@ -121,7 +121,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-030 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-030 | View event activity | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-031 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-032 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-033 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1364,5 +1364,45 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-16; e2e tests not run due to no PostgreSQL.
+
+### US-030 — View event activity
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-16
+- **Last updated:** 2026-11-16
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-030-view-event-activity.md`
+
+**Acceptance criteria**
+- [x] Total qualifying events are displayed for the selected period. — `GET /organizations/:orgId/projects/:projectId/analytics/event-activity` returns `{ total, daily, startDate, endDate }`. Web UI shows total prominently.
+- [x] The selected period is visible. — Period selector (7d/30d/90d) and formatted date range displayed in the UI.
+- [x] Empty periods are represented clearly. — Zero-filled daily breakdown; empty state message when no events exist.
+- [x] Only authorized project data is included. — Org membership and project ownership verified before any query.
+
+**Implementation notes**
+- Database: Added `@@index([projectId, eventTimestamp])` to Event model. Migration `20261116100000_add_event_timestamp_index`.
+- API: New `AnalyticsModule` with `AnalyticsService`, `AnalyticsController`, and `EventActivityQueryDto`. Endpoint at `GET /organizations/:orgId/projects/:projectId/analytics/event-activity` with `startDate` and `endDate` query params (YYYY-MM-DD). Returns total count and zero-filled daily breakdown.
+- API: Queries PostgreSQL `events` table filtering `validationStatus = 'VALID'`. Uses `$queryRaw` with `DATE()` grouping for daily counts.
+- Web: Added `EventActivitySection` component to project detail page with period presets (7d/30d/90d), total count display, daily bar chart with hover tooltips, loading/error/empty states.
+- Key files: `apps/api/src/analytics/` (all new), `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`, `packages/database/prisma/schema.prisma`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 162 passed (10 new: 5 service + 5 controller).
+- [ ] Integration / E2E tests: `pnpm --filter api test:e2e` — not run (no PostgreSQL). 8 new e2e tests written.
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment.
+- ClickHouse migration deferred — queries run against PostgreSQL for MVP.
+- Custom date picker deferred — using presets (7d/30d/90d).
+- Timezone handling deferred — dates in UTC.
+
+**Completion note**
+- All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-16; e2e tests written but require PostgreSQL.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

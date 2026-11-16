@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 25 |
+| Not Started | 24 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 30 |
-| Overall completion | 54% |
+| Done | 31 |
+| Overall completion | 55% |
 
 **Last updated:** 2026-11-16
 
@@ -122,7 +122,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-030 | View event activity | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
-| US-031 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-031 | View active users | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-032 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-033 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-034 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1404,5 +1404,42 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-16; e2e tests written but require PostgreSQL.
+
+### US-031 — View active users
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-16
+- **Last updated:** 2026-11-16
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-031-view-active-users.md`
+
+**Acceptance criteria**
+- [x] Distinct active user references are calculated for the selected period. — `COUNT(DISTINCT COALESCE(user_id, anonymous_id))` query on valid events within the date range.
+- [x] The active-user definition is accessible. — `definition` field returned in API response; "?" button on UI shows it.
+- [x] Anonymous and identified identity rules are consistent. — `COALESCE(user_id, anonymous_id)` ensures identified users counted by userId, anonymous by anonymousId.
+- [x] Results match deterministic test data. — Unit tests with mocked query results verify total, daily breakdown, and zero-fill logic.
+
+**Implementation notes**
+- API: Added `getActiveUsers()` to `AnalyticsService` and `GET .../analytics/active-users` to `AnalyticsController`. Reuses `eventActivityQuerySchema` DTO.
+- API: Uses two raw queries — one for total distinct users, one for daily breakdown with `COALESCE(user_id, anonymous_id)` identity.
+- Web: Added `ActiveUsersSection` component to project detail page between event activity and features sections. Same period presets (7d/30d/90d) and bar chart pattern as event activity.
+- Key files: `apps/api/src/analytics/analytics.service.ts`, `apps/api/src/analytics/analytics.controller.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 169 passed (7 new: 5 service + 2 controller).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- No e2e tests (PostgreSQL not available in this cloud environment).
+- Feature adoption (US-032) will use active-user count as denominator.
+- Custom date range deferred to US-035.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-16; results recorded above.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

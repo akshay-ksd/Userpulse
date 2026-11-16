@@ -518,6 +518,144 @@ function EventActivitySection({ orgId, projectId }: { orgId: string; projectId: 
   );
 }
 
+type ActiveUsersData = {
+  total: number;
+  daily: Array<{ date: string; count: number }>;
+  startDate: string;
+  endDate: string;
+  definition: string;
+};
+
+function ActiveUsersSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [period, setPeriod] = useState<PeriodPreset>('7d');
+  const [data, setData] = useState<ActiveUsersData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showDefinition, setShowDefinition] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const { startDate, endDate } = getDateRange(period);
+
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/analytics/active-users?startDate=${startDate}&endDate=${endDate}`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setData(await res.json());
+        } else {
+          setError('Failed to load active users.');
+        }
+      } catch {
+        if (!cancelled) setError('Network error loading active users.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId, period]);
+
+  const maxCount = data ? Math.max(...data.daily.map((d) => d.count), 1) : 1;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-medium text-black dark:text-zinc-50">Active users</h2>
+          <button
+            onClick={() => setShowDefinition(!showDefinition)}
+            className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            aria-label="Show active user definition"
+          >
+            ?
+          </button>
+        </div>
+        <div className="flex gap-1">
+          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                period === p
+                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {showDefinition && data?.definition && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950">
+          <p className="text-sm text-blue-700 dark:text-blue-300">{data.definition}</p>
+        </div>
+      )}
+
+      {loading && <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading active users…</p>}
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {!loading && !error && data && (
+        <div className="flex flex-col gap-4">
+          <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              {formatDateRange(data.startDate, data.endDate)}
+            </p>
+            <p className="mt-1 text-3xl font-semibold text-black dark:text-zinc-50">
+              {data.total.toLocaleString()}
+            </p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              active user{data.total === 1 ? '' : 's'}
+            </p>
+          </div>
+
+          {data.total === 0 ? (
+            <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                No active users in this period. Events need a userId or anonymousId to count.
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+              <p className="mb-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                Daily active users
+              </p>
+              <div className="flex items-end gap-px" style={{ height: '80px' }}>
+                {data.daily.map((d) => (
+                  <div key={d.date} className="group relative flex-1" style={{ height: '100%' }}>
+                    <div
+                      className="absolute bottom-0 w-full rounded-t bg-black/80 dark:bg-zinc-300 transition-colors group-hover:bg-black dark:group-hover:bg-zinc-100"
+                      style={{
+                        height: `${Math.max((d.count / maxCount) * 100, d.count > 0 ? 4 : 0)}%`,
+                        minHeight: d.count > 0 ? '2px' : '0',
+                      }}
+                    />
+                    <div className="pointer-events-none absolute -top-8 left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded bg-black px-2 py-1 text-xs text-white group-hover:block dark:bg-zinc-200 dark:text-black">
+                      {d.date}: {d.count.toLocaleString()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -1545,6 +1683,10 @@ function ProjectDetail() {
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
       <EventActivitySection orgId={orgId} projectId={project.id} />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <ActiveUsersSection orgId={orgId} projectId={project.id} />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

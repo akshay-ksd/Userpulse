@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 22 |
+| Not Started | 21 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 33 |
-| Overall completion | 59% |
+| Done | 34 |
+| Overall completion | 61% |
 
 **Last updated:** 2026-11-16
 
@@ -125,7 +125,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-031 | View active users | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-032 | View feature adoption | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 | US-033 | View feature usage trends | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
-| US-034 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-034 | Compare feature usage | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | All acceptance criteria met, tests pass |
 | US-035 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-08 Funnels and Behavioral Insights
@@ -1236,6 +1236,7 @@ Add a newest-first entry whenever a story changes status, becomes blocked/unbloc
 
 | Date | Story ID | Update | Status change | Updated by |
 |---|---|---|---|---|
+| 2026-11-16 | US-034 | Compare feature usage: `getFeatureUsageComparison()` service method, `GET .../analytics/feature-usage-comparison` endpoint, `FeatureUsageComparisonSection` web component with horizontal bar chart ranking, 5 unit tests; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-027 | Edit or archive a feature: `PATCH /organizations/:orgId/projects/:projectId/features/:featureId` endpoint, `EditFeatureForm` component, archive/restore with confirm dialog, status badges, 8 unit tests, 9 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-026 | Create a product feature: `Feature` model, `FeaturesModule` with `POST/GET /organizations/:orgId/projects/:projectId/features`, `FeaturesSection` on project detail page, 6 unit tests, 9 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
 | 2026-11-15 | US-025 | View event collection status: `GET /organizations/:orgId/projects/:projectId/event-status` endpoint, `EventCollectionStatus` component on project detail page with no-events guidance and receiving-events indicator, 3 unit tests, 5 e2e tests written; all acceptance criteria verified | Not Started → Done | Claude Code agent |
@@ -1511,6 +1512,27 @@ A story may be marked **Done** only when:
 **Blockers / follow-up**
 - No e2e tests (PostgreSQL not available in this cloud environment).
 - Feature comparison/ranking is US-034.
+- Custom date range deferred to US-035.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-16; results recorded above.
+
+### US-034 — Compare feature usage
+
+**Implementation notes**
+- API: Added `getFeatureUsageComparison()` to `AnalyticsService` — verifies membership/project, queries per-feature event counts via raw SQL JOIN between events and feature_event_mappings (`COUNT(*)` grouped by feature_id), maps to active features (0 for unmapped), sorts by totalEvents descending. Added `GET .../analytics/feature-usage-comparison` endpoint reusing `eventActivityQuerySchema`.
+- Web: Added `FeatureUsageComparisonSection` component with period presets (7d/30d/90d), horizontal bar chart table with rank numbers, feature names, relative usage bars, and event counts. Empty state for no features. Zero-event features shown with empty bar and 0 count. Metric definition toggle. Placed between Feature Usage Trends and Features sections.
+- Key files: `apps/api/src/analytics/analytics.service.ts`, `analytics.controller.ts`, `__tests__/analytics.service.spec.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 192 passed (5 new for getFeatureUsageComparison: non-member rejection, missing project rejection, happy path with ranking, zero-event features, empty features).
+- [ ] Integration / E2E tests: not run (no PostgreSQL in this environment).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- No e2e tests (PostgreSQL not available in this cloud environment).
 - Custom date range deferred to US-035.
 
 **Completion note**

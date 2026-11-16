@@ -665,3 +665,162 @@ describe('AnalyticsService — getFeatureUsageTrends', () => {
     expect(result.featureName).toBe('Search');
   });
 });
+
+describe('AnalyticsService — getFeatureUsageComparison', () => {
+  let service: AnalyticsService;
+  let prisma: ReturnType<typeof makePrisma>;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AnalyticsService(prisma as any);
+  });
+
+  it('throws NotFoundException when user is not a member', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.getFeatureUsageComparison(
+        'org1',
+        'proj1',
+        'user1',
+        '2026-11-01',
+        '2026-11-07',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws NotFoundException when project does not exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getFeatureUsageComparison(
+        'org1',
+        'proj1',
+        'user1',
+        '2026-11-01',
+        '2026-11-07',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('returns features ranked by total events descending', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([
+      { feature_id: 'f1', count: BigInt(10) },
+      { feature_id: 'f2', count: BigInt(50) },
+      { feature_id: 'f3', count: BigInt(30) },
+    ]);
+    prisma.feature.findMany.mockResolvedValue([
+      {
+        id: 'f1',
+        projectId: 'proj1',
+        name: 'Login',
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f2',
+        projectId: 'proj1',
+        name: 'Search',
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f3',
+        projectId: 'proj1',
+        name: 'Export',
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      },
+    ]);
+
+    const result = await service.getFeatureUsageComparison(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+    );
+
+    expect(result.features.map((f) => f.featureName)).toEqual([
+      'Search',
+      'Export',
+      'Login',
+    ]);
+    expect(result.features.map((f) => f.totalEvents)).toEqual([50, 30, 10]);
+    expect(result.startDate).toBe('2026-11-01');
+    expect(result.endDate).toBe('2026-11-07');
+    expect(result.metric).toContain('Total valid events');
+  });
+
+  it('returns 0 events for features with no activity', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([
+      { feature_id: 'f1', count: BigInt(5) },
+    ]);
+    prisma.feature.findMany.mockResolvedValue([
+      {
+        id: 'f1',
+        projectId: 'proj1',
+        name: 'Login',
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f2',
+        projectId: 'proj1',
+        name: 'Search',
+        status: 'ACTIVE',
+        createdAt: new Date(),
+      },
+    ]);
+
+    const result = await service.getFeatureUsageComparison(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+    );
+
+    expect(result.features[0]).toEqual({
+      featureId: 'f1',
+      featureName: 'Login',
+      totalEvents: 5,
+    });
+    expect(result.features[1]).toEqual({
+      featureId: 'f2',
+      featureName: 'Search',
+      totalEvents: 0,
+    });
+  });
+
+  it('returns empty features array when no active features exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([]);
+    prisma.feature.findMany.mockResolvedValue([]);
+
+    const result = await service.getFeatureUsageComparison(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+    );
+
+    expect(result.features).toEqual([]);
+  });
+});

@@ -18,6 +18,7 @@ import {
   type ActiveUsersResult,
   type EventActivityResult,
   type FeatureAdoptionResult,
+  type FeatureUsageComparisonResult,
   type FeatureUsageTrendsResult,
 } from './analytics.service.js';
 
@@ -89,6 +90,30 @@ export class AnalyticsController {
 
     const { startDate, endDate } = parsed.data;
     return this.analyticsService.getFeatureAdoption(
+      orgId,
+      projectId,
+      user.id,
+      startDate,
+      endDate,
+    );
+  }
+
+  @Get('feature-usage-comparison')
+  async getFeatureUsageComparison(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+    @Query() query: Record<string, string>,
+  ): Promise<FeatureUsageComparisonResult> {
+    const parsed = eventActivityQuerySchema.safeParse(query);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map((i) => i.message).join('; '),
+      );
+    }
+
+    const { startDate, endDate } = parsed.data;
+    return this.analyticsService.getFeatureUsageComparison(
       orgId,
       projectId,
       user.id,

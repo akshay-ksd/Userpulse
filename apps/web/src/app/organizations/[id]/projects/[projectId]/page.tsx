@@ -1008,6 +1008,177 @@ function FeatureUsageTrendsSection({ orgId, projectId }: { orgId: string; projec
   );
 }
 
+type FeatureUsageComparisonData = {
+  features: Array<{
+    featureId: string;
+    featureName: string;
+    totalEvents: number;
+  }>;
+  startDate: string;
+  endDate: string;
+  metric: string;
+};
+
+function FeatureUsageComparisonSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [period, setPeriod] = useState<PeriodPreset>('7d');
+  const [data, setData] = useState<FeatureUsageComparisonData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showMetric, setShowMetric] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const { startDate, endDate } = getDateRange(period);
+
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/analytics/feature-usage-comparison?startDate=${startDate}&endDate=${endDate}`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setData(await res.json());
+        } else {
+          setError('Failed to load feature usage comparison.');
+        }
+      } catch {
+        if (!cancelled) setError('Network error loading feature usage comparison.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId, period]);
+
+  const maxEvents = data ? Math.max(...data.features.map((f) => f.totalEvents), 1) : 1;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <h2 className="text-lg font-medium text-black dark:text-zinc-50">
+            Feature usage comparison
+          </h2>
+          <button
+            onClick={() => setShowMetric(!showMetric)}
+            className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+            aria-label="Show metric definition"
+          >
+            ?
+          </button>
+        </div>
+        <div className="flex gap-1">
+          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => setPeriod(p)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                period === p
+                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {showMetric && data?.metric && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950">
+          <p className="text-sm text-blue-700 dark:text-blue-300">{data.metric}</p>
+        </div>
+      )}
+
+      {loading && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          Loading feature usage comparison…
+        </p>
+      )}
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {!loading && !error && data && (
+        <div className="flex flex-col gap-4">
+          {data.features.length === 0 ? (
+            <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                No active features. Create and map features to compare usage.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {formatDateRange(data.startDate, data.endDate)} &middot; Ranked by total events
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-black/[.08] dark:border-white/[.08]">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-black/[.08] dark:border-white/[.08]">
+                      <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">
+                        #
+                      </th>
+                      <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">
+                        Feature
+                      </th>
+                      <th className="w-1/3 px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">
+                        Usage
+                      </th>
+                      <th className="px-4 py-2 text-right font-medium text-zinc-500 dark:text-zinc-400">
+                        Events
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.features.map((f, i) => (
+                      <tr
+                        key={f.featureId}
+                        className="border-b border-black/[.04] last:border-0 dark:border-white/[.04]"
+                      >
+                        <td className="px-4 py-2.5 text-zinc-400 dark:text-zinc-500">{i + 1}</td>
+                        <td className="px-4 py-2.5 text-black dark:text-zinc-50">
+                          {f.featureName}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <div className="h-2 w-full rounded-full bg-zinc-100 dark:bg-zinc-800">
+                            {f.totalEvents > 0 && (
+                              <div
+                                className="h-2 rounded-full bg-black/80 dark:bg-zinc-300"
+                                style={{
+                                  width: `${(f.totalEvents / maxEvents) * 100}%`,
+                                  minWidth: '4px',
+                                }}
+                              />
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-medium text-black dark:text-zinc-50">
+                          {f.totalEvents.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function formatRelativeTime(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
@@ -2047,6 +2218,10 @@ function ProjectDetail() {
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
       <FeatureUsageTrendsSection orgId={orgId} projectId={project.id} />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <FeatureUsageComparisonSection orgId={orgId} projectId={project.id} />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

@@ -480,6 +480,15 @@ type FeatureInfo = {
   description: string | null;
   status: string;
   createdAt: string;
+  mappingCount: number;
+};
+
+type MappingInfo = {
+  id: string;
+  featureId: string;
+  projectId: string;
+  eventName: string;
+  createdAt: string;
 };
 
 function EditFeatureForm({
@@ -575,6 +584,165 @@ function EditFeatureForm({
   );
 }
 
+function EventMappings({
+  orgId,
+  projectId,
+  featureId,
+  onMappingChange,
+}: {
+  orgId: string;
+  projectId: string;
+  featureId: string;
+  onMappingChange: () => void;
+}) {
+  const [mappings, setMappings] = useState<MappingInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [newEventName, setNewEventName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/features/${featureId}/mappings`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setMappings(await res.json());
+        }
+      } catch {
+        if (!cancelled) setError('Failed to load mappings.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId, featureId]);
+
+  async function handleAdd(e: React.FormEvent) {
+    e.preventDefault();
+    if (!newEventName.trim()) return;
+    setError('');
+    setAdding(true);
+
+    const currentNames = mappings.map((m) => m.eventName);
+    const updatedNames = [...currentNames, newEventName.trim()];
+
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/features/${featureId}/mappings`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ eventNames: updatedNames }),
+        },
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to add mapping.');
+        return;
+      }
+
+      const updated = (await res.json()) as MappingInfo[];
+      setMappings(updated);
+      setNewEventName('');
+      onMappingChange();
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  async function handleRemove(mappingId: string) {
+    setRemovingId(mappingId);
+    setError('');
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/features/${featureId}/mappings/${mappingId}`,
+        { method: 'DELETE', credentials: 'include' },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to remove mapping.');
+        return;
+      }
+      setMappings((prev) => prev.filter((m) => m.id !== mappingId));
+      onMappingChange();
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setRemovingId(null);
+    }
+  }
+
+  if (loading) {
+    return <p className="px-4 py-2 text-xs text-zinc-500 dark:text-zinc-400">Loading mappings…</p>;
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-black/[.06] px-4 py-3 dark:border-white/[.06]">
+      <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">Event mappings</span>
+
+      {mappings.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {mappings.map((m) => (
+            <span
+              key={m.id}
+              className="inline-flex items-center gap-1 rounded-md bg-zinc-100 px-2 py-1 text-xs text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+            >
+              <code className="font-mono">{m.eventName}</code>
+              <button
+                onClick={() => handleRemove(m.id)}
+                disabled={removingId === m.id}
+                className="ml-0.5 text-zinc-400 transition-colors hover:text-red-500 disabled:opacity-50 dark:text-zinc-500 dark:hover:text-red-400"
+                aria-label={`Remove ${m.eventName}`}
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {mappings.length === 0 && (
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">No events mapped yet.</p>
+      )}
+
+      <form onSubmit={handleAdd} className="flex gap-1.5">
+        <input
+          type="text"
+          placeholder="Event name (e.g. button_click)"
+          value={newEventName}
+          onChange={(e) => setNewEventName(e.target.value)}
+          disabled={adding}
+          className="flex-1 rounded-md border border-black/[.1] bg-transparent px-2 py-1 text-xs text-black placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.15] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+        />
+        <button
+          type="submit"
+          disabled={adding || !newEventName.trim()}
+          className="shrink-0 rounded-md bg-black px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+        >
+          {adding ? 'Adding…' : 'Add'}
+        </button>
+      </form>
+
+      {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
+    </div>
+  );
+}
+
 function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: string }) {
   const [features, setFeatures] = useState<FeatureInfo[]>([]);
   const [loading, setLoading] = useState(true);
@@ -584,6 +752,7 @@ function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: strin
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [archivingId, setArchivingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -737,56 +906,92 @@ function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: strin
                 onCancel={() => setEditingId(null)}
               />
             ) : (
-              <div key={feat.id} className="flex items-center justify-between px-4 py-3">
-                <div className="flex flex-col gap-0.5">
+              <div key={feat.id} className="flex flex-col">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <div className="flex flex-col gap-0.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-black dark:text-zinc-50">
+                        {feat.name}
+                      </span>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          feat.status === 'ARCHIVED'
+                            ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
+                            : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                        }`}
+                      >
+                        {feat.status}
+                      </span>
+                      {feat.mappingCount > 0 && (
+                        <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                          {feat.mappingCount} event{feat.mappingCount === 1 ? '' : 's'} mapped
+                        </span>
+                      )}
+                    </div>
+                    {feat.description && (
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {feat.description}
+                      </span>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-black dark:text-zinc-50">
-                      {feat.name}
+                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                      Created {new Date(feat.createdAt).toLocaleDateString()}
                     </span>
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    <button
+                      onClick={() => setExpandedId(expandedId === feat.id ? null : feat.id)}
+                      className="rounded px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    >
+                      {expandedId === feat.id ? 'Hide events' : 'Events'}
+                    </button>
+                    <button
+                      onClick={() => setEditingId(feat.id)}
+                      className="rounded px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      onClick={() => handleArchiveToggle(feat)}
+                      disabled={archivingId === feat.id}
+                      className={`rounded px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
                         feat.status === 'ARCHIVED'
-                          ? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
-                          : 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                          ? 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+                          : 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950'
                       }`}
                     >
-                      {feat.status}
-                    </span>
+                      {archivingId === feat.id
+                        ? feat.status === 'ARCHIVED'
+                          ? 'Restoring…'
+                          : 'Archiving…'
+                        : feat.status === 'ARCHIVED'
+                          ? 'Restore'
+                          : 'Archive'}
+                    </button>
                   </div>
-                  {feat.description && (
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {feat.description}
-                    </span>
-                  )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Created {new Date(feat.createdAt).toLocaleDateString()}
-                  </span>
-                  <button
-                    onClick={() => setEditingId(feat.id)}
-                    className="rounded px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={() => handleArchiveToggle(feat)}
-                    disabled={archivingId === feat.id}
-                    className={`rounded px-2 py-1 text-xs font-medium transition-colors disabled:opacity-50 ${
-                      feat.status === 'ARCHIVED'
-                        ? 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-                        : 'text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950'
-                    }`}
-                  >
-                    {archivingId === feat.id
-                      ? feat.status === 'ARCHIVED'
-                        ? 'Restoring…'
-                        : 'Archiving…'
-                      : feat.status === 'ARCHIVED'
-                        ? 'Restore'
-                        : 'Archive'}
-                  </button>
-                </div>
+                {expandedId === feat.id && (
+                  <EventMappings
+                    orgId={orgId}
+                    projectId={projectId}
+                    featureId={feat.id}
+                    onMappingChange={() => {
+                      setFeatures((prev) =>
+                        prev.map((f) =>
+                          f.id === feat.id ? { ...f, mappingCount: f.mappingCount + 0 } : f,
+                        ),
+                      );
+                      // Reload features to get updated counts
+                      fetch(`${API_URL}/organizations/${orgId}/projects/${projectId}/features`, {
+                        credentials: 'include',
+                      })
+                        .then((res) => (res.ok ? res.json() : null))
+                        .then((data) => {
+                          if (data) setFeatures(data);
+                        })
+                        .catch(() => {});
+                    }}
+                  />
+                )}
               </div>
             ),
           )}

@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 27 |
+| Not Started | 26 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 28 |
-| Overall completion | 50% |
+| Done | 29 |
+| Overall completion | 52% |
 
 **Last updated:** 2026-11-16
 
@@ -115,7 +115,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-026 | Create a product feature | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-027 | Edit or archive a feature | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-15 | — |
 | US-028 | Map events to a feature | Done | 100% | Claude Code agent | 2026-11-15 | 2026-11-16 | — |
-| US-029 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-029 | Find unmapped events | Done | 100% | Claude Code agent | 2026-11-16 | 2026-11-16 | — |
 
 ### EP-07 Product Analytics
 
@@ -1324,5 +1324,45 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-16; e2e tests not run due to no PostgreSQL.
+
+### US-029 — Find unmapped events
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-16
+- **Last updated:** 2026-11-16
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-029-find-unmapped-events.md`
+
+**Acceptance criteria**
+- [x] Unmapped event names are listed for the selected project. — `GET /organizations/:orgId/projects/:projectId/unmapped-events` returns distinct event names not in `feature_event_mappings`, with count and last seen time.
+- [x] Recent activity is visible for each event. — Each unmapped event shows `eventCount` and `lastSeenAt` (formatted as relative time in the UI).
+- [x] Users can start a mapping action from the list. — Each event has a "Map to feature" button that shows a dropdown of active features; selecting one calls the existing PUT mappings endpoint.
+- [x] An empty state appears when no unmapped events exist. — Message displayed when all events are mapped or no events have been collected.
+
+**Implementation notes**
+- API: Added `getUnmappedEvents()` to `FeaturesService` — uses Prisma `groupBy` on events table for distinct event names with counts/max timestamps, filters out names present in `feature_event_mappings`.
+- API: New `UnmappedEventsController` at `/organizations/:orgId/projects/:projectId/unmapped-events` with `GET` endpoint.
+- API: Registered `UnmappedEventsController` in `FeaturesModule`.
+- Web: New `UnmappedEventsSection` component on project detail page. Shows unmapped events with activity info, "Map to feature" action with feature dropdown, empty state.
+- No database migration needed — queries existing `events` and `feature_event_mappings` tables.
+- Key files: `apps/api/src/features/features.service.ts`, `apps/api/src/features/unmapped-events.controller.ts`, `apps/api/src/features/features.module.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 152 passed (4 new: getUnmappedEvents happy path, all mapped, no events, non-member).
+- [ ] Integration / E2E tests: `pnpm --filter api test:e2e` — not run (no PostgreSQL in this environment).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment.
+- No pagination — event name cardinality is expected to be low at MVP scale.
+- No filtering/search within unmapped events.
+
+**Completion note**
+- All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-16; e2e tests not run due to no PostgreSQL.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

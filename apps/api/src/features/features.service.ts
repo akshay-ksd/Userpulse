@@ -25,6 +25,12 @@ export interface MappingInfo {
   createdAt: Date;
 }
 
+export interface UnmappedEventInfo {
+  eventName: string;
+  eventCount: number;
+  lastSeenAt: Date;
+}
+
 @Injectable()
 export class FeaturesService {
   constructor(private readonly prisma: PrismaService) {}
@@ -260,5 +266,40 @@ export class FeaturesService {
     await this.prisma.featureEventMapping.delete({
       where: { id: mappingId },
     });
+  }
+
+  async getUnmappedEvents(
+    orgId: string,
+    projectId: string,
+    userId: string,
+  ): Promise<UnmappedEventInfo[]> {
+    await this.verifyProjectAccess(orgId, projectId, userId);
+
+    const eventGroups = await this.prisma.event.groupBy({
+      by: ['eventName'],
+      where: { projectId, validationStatus: 'VALID' },
+      _count: { eventName: true },
+      _max: { ingestedAt: true },
+    });
+
+    if (eventGroups.length === 0) {
+      return [];
+    }
+
+    const mappedNames = await this.prisma.featureEventMapping.findMany({
+      where: { projectId },
+      select: { eventName: true },
+    });
+
+    const mappedSet = new Set(mappedNames.map((m) => m.eventName));
+
+    return eventGroups
+      .filter((g) => !mappedSet.has(g.eventName))
+      .map((g) => ({
+        eventName: g.eventName,
+        eventCount: g._count.eventName,
+        lastSeenAt: g._max.ingestedAt!,
+      }))
+      .sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime());
   }
 }

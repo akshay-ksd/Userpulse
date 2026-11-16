@@ -24,6 +24,9 @@ function mockPrisma() {
       findFirst: vi.fn(),
       delete: vi.fn(),
     },
+    event: {
+      groupBy: vi.fn(),
+    },
     $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) =>
       fn({
         featureEventMapping: {
@@ -642,6 +645,119 @@ describe('FeaturesService', () => {
 
       await expect(
         service.removeMapping('org-1', 'proj-1', 'feat-1', 'map-1', 'user-2'),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('getUnmappedEvents', () => {
+    it('returns events not mapped to any feature', async () => {
+      const prisma = mockPrisma();
+      const service = new FeaturesService(prisma);
+      const now = new Date();
+      const earlier = new Date(now.getTime() - 60000);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (prisma.event.groupBy as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          eventName: 'button_click',
+          _count: { eventName: 5 },
+          _max: { ingestedAt: now },
+        },
+        {
+          eventName: 'search_performed',
+          _count: { eventName: 3 },
+          _max: { ingestedAt: earlier },
+        },
+        {
+          eventName: '$page',
+          _count: { eventName: 10 },
+          _max: { ingestedAt: now },
+        },
+      ]);
+      (
+        prisma.featureEventMapping.findMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([{ eventName: 'search_performed' }]);
+
+      const result = await service.getUnmappedEvents(
+        'org-1',
+        'proj-1',
+        'user-1',
+      );
+
+      expect(result).toHaveLength(2);
+      expect(result[0].eventName).toBe('button_click');
+      expect(result[0].eventCount).toBe(5);
+      expect(result[1].eventName).toBe('$page');
+      expect(result[1].eventCount).toBe(10);
+    });
+
+    it('returns empty array when all events are mapped', async () => {
+      const prisma = mockPrisma();
+      const service = new FeaturesService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (prisma.event.groupBy as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          eventName: 'button_click',
+          _count: { eventName: 5 },
+          _max: { ingestedAt: new Date() },
+        },
+      ]);
+      (
+        prisma.featureEventMapping.findMany as ReturnType<typeof vi.fn>
+      ).mockResolvedValue([{ eventName: 'button_click' }]);
+
+      const result = await service.getUnmappedEvents(
+        'org-1',
+        'proj-1',
+        'user-1',
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('returns empty array when no events exist', async () => {
+      const prisma = mockPrisma();
+      const service = new FeaturesService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(membership);
+      (prisma.project.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        project,
+      );
+      (prisma.event.groupBy as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+      const result = await service.getUnmappedEvents(
+        'org-1',
+        'proj-1',
+        'user-1',
+      );
+
+      expect(result).toEqual([]);
+      expect(prisma.featureEventMapping.findMany).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException for non-member', async () => {
+      const prisma = mockPrisma();
+      const service = new FeaturesService(prisma);
+
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      await expect(
+        service.getUnmappedEvents('org-1', 'proj-1', 'user-2'),
       ).rejects.toThrow(NotFoundException);
     });
   });

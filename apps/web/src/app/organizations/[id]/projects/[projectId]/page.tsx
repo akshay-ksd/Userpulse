@@ -743,7 +743,194 @@ function EventMappings({
   );
 }
 
-function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+type UnmappedEvent = {
+  eventName: string;
+  eventCount: number;
+  lastSeenAt: string;
+};
+
+function UnmappedEventsSection({
+  orgId,
+  projectId,
+  features,
+  onMapped,
+}: {
+  orgId: string;
+  projectId: string;
+  features: FeatureInfo[];
+  onMapped: () => void;
+}) {
+  const [events, setEvents] = useState<UnmappedEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [mappingEvent, setMappingEvent] = useState<string | null>(null);
+  const [selectedFeature, setSelectedFeature] = useState<string>('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/unmapped-events`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setEvents(await res.json());
+        }
+      } catch {
+        if (!cancelled) setError('Failed to load unmapped events.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId]);
+
+  async function handleMap(eventName: string, featureId: string) {
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const mappingsRes = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/features/${featureId}/mappings`,
+        { credentials: 'include' },
+      );
+      if (!mappingsRes.ok) {
+        setError('Failed to load feature mappings.');
+        return;
+      }
+      const currentMappings = (await mappingsRes.json()) as MappingInfo[];
+      const currentNames = currentMappings.map((m) => m.eventName);
+
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/features/${featureId}/mappings`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ eventNames: [...currentNames, eventName] }),
+        },
+      );
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to map event.');
+        return;
+      }
+
+      setEvents((prev) => prev.filter((e) => e.eventName !== eventName));
+      setMappingEvent(null);
+      setSelectedFeature('');
+      onMapped();
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const activeFeatures = features.filter((f) => f.status === 'ACTIVE');
+
+  return (
+    <div className="flex flex-col gap-4">
+      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Unmapped events</h2>
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {loading ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading unmapped events…</p>
+      ) : events.length === 0 ? (
+        <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            All collected events are mapped to features, or no events have been collected yet.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
+          {events.map((evt) => (
+            <div key={evt.eventName} className="flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex flex-col gap-0.5">
+                  <code className="text-sm font-medium font-mono text-black dark:text-zinc-50">
+                    {evt.eventName}
+                  </code>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {evt.eventCount.toLocaleString()} event{evt.eventCount === 1 ? '' : 's'} · Last
+                    seen {formatRelativeTime(evt.lastSeenAt)}
+                  </span>
+                </div>
+                <div>
+                  {mappingEvent === evt.eventName ? (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={selectedFeature}
+                        onChange={(e) => setSelectedFeature(e.target.value)}
+                        disabled={submitting}
+                        className="rounded-md border border-black/[.15] bg-transparent px-2 py-1 text-xs text-black focus:outline-none focus:ring-1 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:focus:ring-white/20"
+                      >
+                        <option value="">Select feature…</option>
+                        {activeFeatures.map((f) => (
+                          <option key={f.id} value={f.id}>
+                            {f.name}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => {
+                          if (selectedFeature) {
+                            void handleMap(evt.eventName, selectedFeature);
+                          }
+                        }}
+                        disabled={!selectedFeature || submitting}
+                        className="shrink-0 rounded-md bg-black px-2.5 py-1 text-xs font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+                      >
+                        {submitting ? 'Mapping…' : 'Confirm'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMappingEvent(null);
+                          setSelectedFeature('');
+                        }}
+                        disabled={submitting}
+                        className="rounded-md px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setMappingEvent(evt.eventName)}
+                      className="rounded-md px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                    >
+                      Map to feature
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FeaturesSection({
+  orgId,
+  projectId,
+  onFeaturesLoaded,
+}: {
+  orgId: string;
+  projectId: string;
+  onFeaturesLoaded?: (features: FeatureInfo[]) => void;
+}) {
   const [features, setFeatures] = useState<FeatureInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -765,7 +952,9 @@ function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: strin
         );
         if (cancelled) return;
         if (res.ok) {
-          setFeatures(await res.json());
+          const data = await res.json();
+          setFeatures(data);
+          onFeaturesLoaded?.(data);
         }
       } catch {
         if (!cancelled) setError('Failed to load features.');
@@ -778,7 +967,7 @@ function FeaturesSection({ orgId, projectId }: { orgId: string; projectId: strin
     return () => {
       cancelled = true;
     };
-  }, [orgId, projectId]);
+  }, [orgId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -1007,6 +1196,8 @@ function ProjectDetail() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [editing, setEditing] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [projectFeatures, setProjectFeatures] = useState<FeatureInfo[]>([]);
+  const [unmappedKey, setUnmappedKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -1205,7 +1396,27 @@ function ProjectDetail() {
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <FeaturesSection orgId={orgId} projectId={project.id} />
+      <FeaturesSection orgId={orgId} projectId={project.id} onFeaturesLoaded={setProjectFeatures} />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <UnmappedEventsSection
+        key={unmappedKey}
+        orgId={orgId}
+        projectId={project.id}
+        features={projectFeatures}
+        onMapped={() => {
+          setUnmappedKey((k) => k + 1);
+          fetch(`${API_URL}/organizations/${orgId}/projects/${project.id}/features`, {
+            credentials: 'include',
+          })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data) => {
+              if (data) setProjectFeatures(data);
+            })
+            .catch(() => {});
+        }}
+      />
 
       <p className="text-sm text-zinc-500 dark:text-zinc-500">
         Created {new Date(project.createdAt).toLocaleDateString()}

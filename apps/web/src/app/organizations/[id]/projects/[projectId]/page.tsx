@@ -3258,11 +3258,14 @@ function statusBadge(status: string) {
 
 type RecommendationData = {
   id: string;
+  analysisRunId: string;
   title: string;
   summary: string;
   suggestedAction: string;
   category: string;
+  affectedFeatureId: string | null;
   affectedArea: string | null;
+  evidence: Record<string, unknown> | null;
   periodStart: string;
   periodEnd: string;
   status: string;
@@ -3276,6 +3279,188 @@ const categoryColors: Record<string, string> = {
   ux: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
   general: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300',
 };
+
+const metricDefinitions: Record<string, string> = {
+  adoptionRate:
+    'Percentage of active users who triggered at least one event mapped to this feature.',
+  featureUsers:
+    'Number of distinct users who triggered events mapped to this feature in the period.',
+  totalUsers:
+    'Total distinct users (by userId or anonymousId) active in the project during the period.',
+  activeUsers: 'Distinct users who triggered any event in the project during the period.',
+  currentCount: 'Total event count for this event name in the analysis period.',
+  baselineCount: 'Total event count for this event name in the equivalent preceding period.',
+  percentChange: 'Percentage change from baseline to current period.',
+  totalEvents: 'Total events triggered for this feature during the analysis period.',
+  classification:
+    'Relative usage level (high/low/normal) compared to other features in the same project.',
+};
+
+function EvidenceMetricRow({
+  label,
+  value,
+  definitionKey,
+}: {
+  label: string;
+  value: string | number;
+  definitionKey?: string;
+}) {
+  const [showDef, setShowDef] = useState(false);
+  const definition = definitionKey ? metricDefinitions[definitionKey] : undefined;
+  return (
+    <div className="flex items-baseline justify-between gap-4 py-1">
+      <span className="flex items-center gap-1 text-xs text-zinc-500 dark:text-zinc-400">
+        {label}
+        {definition && (
+          <button
+            type="button"
+            onClick={() => setShowDef(!showDef)}
+            className="rounded-full px-1 text-[10px] text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300"
+            aria-label={`Define ${label}`}
+          >
+            ?
+          </button>
+        )}
+      </span>
+      <span className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        {typeof value === 'number' ? value.toLocaleString() : value}
+      </span>
+      {showDef && definition && (
+        <p className="basis-full text-[11px] text-blue-600 dark:text-blue-400">{definition}</p>
+      )}
+    </div>
+  );
+}
+
+function FeatureAdoptionEvidence({ evidence }: { evidence: Record<string, unknown> }) {
+  const rate = evidence.adoptionRate as number;
+  const users = evidence.featureUsers as number;
+  const total = evidence.totalUsers as number;
+  const active = evidence.activeUsers as number;
+  const name = (evidence.featureName as string) ?? 'Unknown feature';
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+        Feature adoption — {name}
+      </p>
+      <EvidenceMetricRow label="Adoption rate" value={`${rate}%`} definitionKey="adoptionRate" />
+      <EvidenceMetricRow label="Feature users" value={users} definitionKey="featureUsers" />
+      <EvidenceMetricRow label="Total active users" value={total} definitionKey="totalUsers" />
+      <EvidenceMetricRow label="Project active users" value={active} definitionKey="activeUsers" />
+    </div>
+  );
+}
+
+function ActivityChangeEvidence({ evidence }: { evidence: Record<string, unknown> }) {
+  const eventName = evidence.eventName as string;
+  const current = evidence.currentCount as number;
+  const baseline = evidence.baselineCount as number;
+  const direction = evidence.direction as string;
+  const pct = evidence.percentChange as number;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">
+        Activity change — {eventName}
+      </p>
+      <EvidenceMetricRow
+        label="Current period count"
+        value={current}
+        definitionKey="currentCount"
+      />
+      <EvidenceMetricRow
+        label="Baseline period count"
+        value={baseline}
+        definitionKey="baselineCount"
+      />
+      <EvidenceMetricRow label="Direction" value={direction} />
+      <EvidenceMetricRow
+        label="Change"
+        value={`${pct > 0 ? '+' : ''}${pct}%`}
+        definitionKey="percentChange"
+      />
+    </div>
+  );
+}
+
+function FeatureUsageEvidence({ evidence }: { evidence: Record<string, unknown> }) {
+  const name = (evidence.featureName as string) ?? 'Unknown feature';
+  const total = evidence.totalEvents as number;
+  const cls = evidence.classification as string;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Feature usage — {name}</p>
+      <EvidenceMetricRow label="Total events" value={total} definitionKey="totalEvents" />
+      <EvidenceMetricRow label="Classification" value={cls} definitionKey="classification" />
+    </div>
+  );
+}
+
+function GenericEvidence({ evidence }: { evidence: Record<string, unknown> }) {
+  const entries = Object.entries(evidence).filter(([k]) => k !== 'type' && k !== 'period');
+  if (entries.length === 0) return null;
+  return (
+    <div className="space-y-1">
+      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Supporting data</p>
+      {entries.map(([key, val]) => (
+        <EvidenceMetricRow
+          key={key}
+          label={key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}
+          value={typeof val === 'object' ? JSON.stringify(val) : String(val)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function EvidenceDisplay({
+  evidence,
+  periodStart,
+  periodEnd,
+  analysisRunId,
+}: {
+  evidence: Record<string, unknown> | null;
+  periodStart: string;
+  periodEnd: string;
+  analysisRunId: string;
+}) {
+  if (!evidence || typeof evidence !== 'object' || Object.keys(evidence).length === 0) {
+    return (
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900">
+        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+          No supporting evidence available for this recommendation.
+        </p>
+      </div>
+    );
+  }
+
+  const evidenceType = evidence.type as string | undefined;
+  const period = evidence.period as { start?: string; end?: string } | undefined;
+  const displayStart = period?.start ?? periodStart;
+  const displayEnd = period?.end ?? periodEnd;
+
+  return (
+    <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950">
+      <p className="mb-2 text-xs font-medium text-emerald-800 dark:text-emerald-200">
+        Observed evidence
+      </p>
+      {evidenceType === 'feature_adoption' && <FeatureAdoptionEvidence evidence={evidence} />}
+      {evidenceType === 'activity_change' && <ActivityChangeEvidence evidence={evidence} />}
+      {evidenceType === 'feature_usage' && <FeatureUsageEvidence evidence={evidence} />}
+      {evidenceType !== 'feature_adoption' &&
+        evidenceType !== 'activity_change' &&
+        evidenceType !== 'feature_usage' && <GenericEvidence evidence={evidence} />}
+      <div className="mt-2 flex flex-wrap gap-3 border-t border-emerald-200 pt-2 dark:border-emerald-800">
+        <span className="text-[11px] text-emerald-700 dark:text-emerald-300">
+          Period: {new Date(displayStart).toLocaleDateString()} –{' '}
+          {new Date(displayEnd).toLocaleDateString()}
+        </span>
+        <span className="text-[11px] text-emerald-600 dark:text-emerald-400">
+          Analysis run: {analysisRunId.slice(0, 8)}…
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
   const [recommendations, setRecommendations] = useState<RecommendationData[]>([]);
@@ -3363,18 +3548,20 @@ function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId
               <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{rec.summary}</p>
 
               {expandedId === rec.id && (
-                <div className="mt-3 space-y-2 border-t border-black/[.08] pt-3 dark:border-white/[.145]">
-                  <div>
-                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
-                      Suggested action:
-                    </span>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                <div className="mt-3 space-y-4 border-t border-black/[.08] pt-3 dark:border-white/[.145]">
+                  <EvidenceDisplay
+                    evidence={rec.evidence}
+                    periodStart={rec.periodStart}
+                    periodEnd={rec.periodEnd}
+                    analysisRunId={rec.analysisRunId}
+                  />
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+                    <p className="mb-1 text-xs font-medium text-amber-800 dark:text-amber-200">
+                      AI interpretation
+                    </p>
+                    <p className="text-sm text-amber-900 dark:text-amber-100">
                       {rec.suggestedAction}
                     </p>
-                  </div>
-                  <div className="text-xs text-zinc-500 dark:text-zinc-500">
-                    Evidence period: {new Date(rec.periodStart).toLocaleDateString()} –{' '}
-                    {new Date(rec.periodEnd).toLocaleDateString()}
                   </div>
                 </div>
               )}

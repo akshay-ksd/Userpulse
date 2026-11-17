@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 14 |
+| Not Started | 13 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 42 |
-| Overall completion | 75% |
+| Done | 43 |
+| Overall completion | 77% |
 
 **Last updated:** 2026-11-17
 
@@ -144,7 +144,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 |---|---|---|---:|---|---|---|---|
 | US-041 | Request product analysis | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-042 | Generate an evidence-backed recommendation | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | Complete |
-| US-043 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-043 | Inspect recommendation evidence | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-044 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-045 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-046 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1839,5 +1839,34 @@ A story may be marked **Done** only when:
 - Used rule-based recommendation generation instead of Bedrock AI (no AWS credentials in environment). Architecture supports adding Bedrock later via the `RecommendationGeneratorService` abstraction.
 - Recommendations are generated atomically within the analysis run transaction.
 - If recommendation generation fails, the analysis run still completes (COMPLETED status with failure note in statusMessage).
+
+### US-043 — Inspect recommendation evidence
+
+- **Status:** Done
+- **Progress:** 100%
+- **Started:** 2026-11-17
+- **Updated:** 2026-11-17
+
+**What was built:**
+- Updated `RecommendationData` type to include `evidence`, `analysisRunId`, and `affectedFeatureId` fields.
+- Created type-specific evidence display components: `FeatureAdoptionEvidence`, `ActivityChangeEvidence`, `FeatureUsageEvidence`, `GenericEvidence`.
+- Created `EvidenceDisplay` orchestrator that routes to the correct component based on `evidence.type` discriminator.
+- Added `EvidenceMetricRow` with toggleable metric definition buttons (`metricDefinitions` dictionary).
+- Separated "Observed evidence" (green card with factual metrics) from "AI interpretation" (amber card with suggestedAction).
+- Handles null/empty evidence with clear "No supporting evidence available" message.
+- Shows analysis run ID reference and evidence period on each recommendation.
+- No backend changes needed — API already returns all required data.
+
+**Verification:**
+- [x] Unit tests: `pnpm --filter api test` — 271 passed (23 files).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Decisions:**
+- Frontend-only implementation; the API's `findOne` and `findByProject` already return evidence JSON and analysisRunId.
+- Used inline components in `page.tsx` following existing project pattern rather than extracting to separate files.
+- Metric definitions use per-metric toggleable "?" buttons rather than a single expandable section.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 17 |
+| Not Started | 16 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 39 |
-| Overall completion | 70% |
+| Done | 40 |
+| Overall completion | 71% |
 
 **Last updated:** 2026-11-17
 
@@ -136,7 +136,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-037 | View funnel conversion and drop-off | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-038 | View common user journeys | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-039 | Identify high or low feature usage | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
-| US-040 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-040 | Identify significant activity changes | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 
 ### EP-09 AI Recommendations
 
@@ -1731,6 +1731,43 @@ A story may be marked **Done** only when:
 - E2E tests require PostgreSQL; not available in this cloud environment.
 - Thresholds (2× mean / 0.25× mean) are hardcoded; can be made configurable later.
 - No trend-based insights (covered by US-040).
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.
+
+### US-040 — Identify significant activity changes
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-17
+- **Last updated:** 2026-11-17
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-040-identify-significant-activity-changes.md`
+
+**Acceptance criteria**
+- [x] Activity is compared against a defined baseline. — Current period compared against equal-length preceding period (e.g., Nov 8–14 vs Nov 1–7).
+- [x] Metric, direction, magnitude, and period are displayed. — Each change shows eventName, currentCount, baselineCount, direction (increase/decrease/unchanged), percentChange. Overall summary included. Both periods displayed.
+- [x] Comparison method is documented. — `method` string in API response explains the 30% threshold, volume minimum, and baseline definition. UI toggleable "?" button shows it.
+- [x] Low-volume data is handled cautiously. — Events with combined volume < 10 marked `lowVolume: true` and excluded from significant changes. Baseline with < 5 total events returns `insufficientData: true`.
+- [x] The platform does not claim a cause without evidence. — Method string explicitly states "No causal claims are made." Only factual direction and magnitude shown.
+
+**Implementation notes**
+- API: Added `getActivityChanges()` to `AnalyticsService` with `ActivityChangeEntry` and `ActivityChangesResult` interfaces. Queries per-event-name counts for current and baseline periods. Added helper functions `calcDirection()` and `calcPercentChange()`. Added `GET activity-changes` endpoint to `AnalyticsController`.
+- Web: Added `ActivityChangesSection` component to project detail page after Feature Usage Insights. Shows overall summary (current vs baseline with direction badge), significant changes table (event name, current, baseline, change badge), and insufficient data / no changes states.
+- Key files: `apps/api/src/analytics/analytics.service.ts`, `apps/api/src/analytics/analytics.controller.ts`, `apps/api/src/analytics/__tests__/analytics.service.spec.ts`, `apps/api/src/analytics/__tests__/analytics.controller.spec.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 234 passed (7 new activity-changes service tests + 2 controller tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2E tests require PostgreSQL; not available in this cloud environment.
+- Thresholds (30% change, volume minimum 10) are hardcoded; can be made configurable later.
+- Statistical significance testing deferred; simple percentage comparison for MVP.
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.

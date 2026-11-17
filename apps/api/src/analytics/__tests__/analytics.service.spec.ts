@@ -1239,3 +1239,216 @@ describe('AnalyticsService — getFeatureUsageInsights', () => {
     expect(result.method).toContain('0.25× mean');
   });
 });
+
+describe('AnalyticsService — getActivityChanges', () => {
+  let service: AnalyticsService;
+  let prisma: ReturnType<typeof makePrisma>;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AnalyticsService(prisma as any);
+  });
+
+  it('throws NotFoundException when user is not a member', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.getActivityChanges(
+        'org1',
+        'proj1',
+        'user1',
+        '2026-11-08',
+        '2026-11-14',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws NotFoundException when project does not exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getActivityChanges(
+        'org1',
+        'proj1',
+        'user1',
+        '2026-11-08',
+        '2026-11-14',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('returns insufficient data when baseline has fewer than 5 events', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ event_name: 'click', count: BigInt(20) }])
+      .mockResolvedValueOnce([{ event_name: 'click', count: BigInt(3) }]);
+
+    const result = await service.getActivityChanges(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-08',
+      '2026-11-14',
+    );
+
+    expect(result.insufficientData).toBe(true);
+    expect(result.insufficientDataReason).toContain('fewer than 5');
+    expect(result.changes).toEqual([]);
+    expect(result.significantChanges).toEqual([]);
+  });
+
+  it('identifies increases and decreases correctly', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw
+      .mockResolvedValueOnce([
+        { event_name: 'click', count: BigInt(100) },
+        { event_name: 'scroll', count: BigInt(5) },
+      ])
+      .mockResolvedValueOnce([
+        { event_name: 'click', count: BigInt(50) },
+        { event_name: 'scroll', count: BigInt(40) },
+      ]);
+
+    const result = await service.getActivityChanges(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-08',
+      '2026-11-14',
+    );
+
+    expect(result.insufficientData).toBe(false);
+    expect(result.overall.currentTotal).toBe(105);
+    expect(result.overall.baselineTotal).toBe(90);
+    expect(result.overall.direction).toBe('increase');
+
+    const clickChange = result.changes.find((c) => c.eventName === 'click');
+    expect(clickChange?.direction).toBe('increase');
+    expect(clickChange?.percentChange).toBe(100);
+    expect(clickChange?.lowVolume).toBe(false);
+
+    const scrollChange = result.changes.find((c) => c.eventName === 'scroll');
+    expect(scrollChange?.direction).toBe('decrease');
+    expect(scrollChange?.percentChange).toBe(-87.5);
+    expect(scrollChange?.lowVolume).toBe(false);
+
+    expect(result.significantChanges.length).toBe(2);
+  });
+
+  it('marks low-volume events correctly', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw
+      .mockResolvedValueOnce([
+        { event_name: 'click', count: BigInt(50) },
+        { event_name: 'rare', count: BigInt(3) },
+      ])
+      .mockResolvedValueOnce([
+        { event_name: 'click', count: BigInt(30) },
+        { event_name: 'rare', count: BigInt(1) },
+      ]);
+
+    const result = await service.getActivityChanges(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-08',
+      '2026-11-14',
+    );
+
+    const rareChange = result.changes.find((c) => c.eventName === 'rare');
+    expect(rareChange?.lowVolume).toBe(true);
+
+    expect(
+      result.significantChanges.find((c) => c.eventName === 'rare'),
+    ).toBeUndefined();
+  });
+
+  it('handles event names appearing only in one period', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ event_name: 'new_event', count: BigInt(20) }])
+      .mockResolvedValueOnce([{ event_name: 'old_event', count: BigInt(15) }]);
+
+    const result = await service.getActivityChanges(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-08',
+      '2026-11-14',
+    );
+
+    const newEvent = result.changes.find((c) => c.eventName === 'new_event');
+    expect(newEvent?.currentCount).toBe(20);
+    expect(newEvent?.baselineCount).toBe(0);
+    expect(newEvent?.direction).toBe('increase');
+    expect(newEvent?.percentChange).toBe(100);
+
+    const oldEvent = result.changes.find((c) => c.eventName === 'old_event');
+    expect(oldEvent?.currentCount).toBe(0);
+    expect(oldEvent?.baselineCount).toBe(15);
+    expect(oldEvent?.direction).toBe('decrease');
+    expect(oldEvent?.percentChange).toBe(-100);
+  });
+
+  it('returns no significant changes when all within threshold', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ event_name: 'click', count: BigInt(55) }])
+      .mockResolvedValueOnce([{ event_name: 'click', count: BigInt(50) }]);
+
+    const result = await service.getActivityChanges(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-08',
+      '2026-11-14',
+    );
+
+    expect(result.significantChanges).toEqual([]);
+    expect(result.changes.length).toBe(1);
+    expect(result.changes[0].percentChange).toBe(10);
+  });
+
+  it('includes method documentation in result', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw
+      .mockResolvedValueOnce([{ event_name: 'click', count: BigInt(50) }])
+      .mockResolvedValueOnce([{ event_name: 'click', count: BigInt(30) }]);
+
+    const result = await service.getActivityChanges(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-08',
+      '2026-11-14',
+    );
+
+    expect(result.method).toContain('30%');
+    expect(result.method).toContain('preceding period');
+  });
+});

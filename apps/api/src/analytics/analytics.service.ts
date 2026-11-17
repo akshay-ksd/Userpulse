@@ -37,6 +37,9 @@ const USER_JOURNEY_SESSION_RULE =
 const FEATURE_USAGE_INSIGHTS_METHOD =
   'Features are classified by comparing their total event count to the mean across all features with data. High usage: > 2× mean. Low usage: < 0.25× mean. Features with zero events are labeled as insufficient data.';
 
+const ACTIVITY_CHANGES_METHOD =
+  'Activity in the selected period is compared against the equal-length preceding period. A change is significant if the absolute percentage change exceeds 30% and the combined event volume (current + baseline) is at least 10. Low-volume events (combined < 10) are flagged but not classified as significant. No causal claims are made.';
+
 const FEATURE_ADOPTION_DEFINITION =
   'Feature adoption rate is the percentage of active users who used the feature during the selected period. An active user is a distinct identified (userId) or anonymous (anonymousId) reference with at least one valid event.';
 
@@ -95,6 +98,31 @@ export interface FeatureUsageInsightsResult {
   featuresWithData: number;
   startDate: string;
   endDate: string;
+  method: string;
+  insufficientData: boolean;
+  insufficientDataReason?: string;
+}
+
+export interface ActivityChangeEntry {
+  eventName: string;
+  currentCount: number;
+  baselineCount: number;
+  direction: 'increase' | 'decrease' | 'unchanged';
+  percentChange: number;
+  lowVolume: boolean;
+}
+
+export interface ActivityChangesResult {
+  overall: {
+    currentTotal: number;
+    baselineTotal: number;
+    direction: 'increase' | 'decrease' | 'unchanged';
+    percentChange: number;
+  };
+  changes: ActivityChangeEntry[];
+  significantChanges: ActivityChangeEntry[];
+  currentPeriod: { startDate: string; endDate: string };
+  baselinePeriod: { startDate: string; endDate: string };
   method: string;
   insufficientData: boolean;
   insufficientDataReason?: string;
@@ -773,4 +801,172 @@ export class AnalyticsService {
       insufficientData: false,
     };
   }
+
+  async getActivityChanges(
+    orgId: string,
+    projectId: string,
+    userId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<ActivityChangesResult> {
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: {
+        organizationId_userId: { organizationId: orgId, userId },
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException();
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, organizationId: orgId },
+    });
+
+    if (!project) {
+      throw new NotFoundException();
+    }
+
+    const currentStart = new Date(`${startDate}T00:00:00.000Z`);
+    const currentEnd = new Date(`${endDate}T23:59:59.999Z`);
+
+    const periodMs = currentEnd.getTime() - currentStart.getTime() + 1;
+    const baselineEnd = new Date(currentStart.getTime() - 1);
+    const baselineStart = new Date(baselineEnd.getTime() - periodMs + 1);
+
+    const baselineStartDate = baselineStart.toISOString().slice(0, 10);
+    const baselineEndDate = baselineEnd.toISOString().slice(0, 10);
+    const baselineStartDt = new Date(`${baselineStartDate}T00:00:00.000Z`);
+    const baselineEndDt = new Date(`${baselineEndDate}T23:59:59.999Z`);
+
+    const [currentEventRows, baselineEventRows] = await Promise.all([
+      this.prisma.$queryRaw<Array<{ event_name: string; count: bigint }>>`
+        SELECT "event_name", COUNT(*)::bigint AS count
+        FROM events
+        WHERE "project_id" = ${projectId}
+          AND "validation_status" = 'VALID'
+          AND "event_timestamp" >= ${currentStart}
+          AND "event_timestamp" <= ${currentEnd}
+        GROUP BY "event_name"
+      `,
+      this.prisma.$queryRaw<Array<{ event_name: string; count: bigint }>>`
+        SELECT "event_name", COUNT(*)::bigint AS count
+        FROM events
+        WHERE "project_id" = ${projectId}
+          AND "validation_status" = 'VALID'
+          AND "event_timestamp" >= ${baselineStartDt}
+          AND "event_timestamp" <= ${baselineEndDt}
+        GROUP BY "event_name"
+      `,
+    ]);
+
+    const currentMap = new Map<string, number>();
+    let currentTotal = 0;
+    for (const row of currentEventRows) {
+      const c = Number(row.count);
+      currentMap.set(row.event_name, c);
+      currentTotal += c;
+    }
+
+    const baselineMap = new Map<string, number>();
+    let baselineTotal = 0;
+    for (const row of baselineEventRows) {
+      const c = Number(row.count);
+      baselineMap.set(row.event_name, c);
+      baselineTotal += c;
+    }
+
+    const currentPeriod = { startDate, endDate };
+    const baselinePeriod = {
+      startDate: baselineStartDate,
+      endDate: baselineEndDate,
+    };
+
+    if (baselineTotal < 5) {
+      const overallDirection = calcDirection(currentTotal, baselineTotal);
+      const overallPct = calcPercentChange(currentTotal, baselineTotal);
+      return {
+        overall: {
+          currentTotal,
+          baselineTotal,
+          direction: overallDirection,
+          percentChange: overallPct,
+        },
+        changes: [],
+        significantChanges: [],
+        currentPeriod,
+        baselinePeriod,
+        method: ACTIVITY_CHANGES_METHOD,
+        insufficientData: true,
+        insufficientDataReason:
+          'The baseline period has fewer than 5 events, which is too few for a meaningful comparison.',
+      };
+    }
+
+    const allEventNames = new Set([
+      ...currentMap.keys(),
+      ...baselineMap.keys(),
+    ]);
+
+    const changes: ActivityChangeEntry[] = [];
+    for (const eventName of allEventNames) {
+      const curr = currentMap.get(eventName) ?? 0;
+      const base = baselineMap.get(eventName) ?? 0;
+      const combined = curr + base;
+      const lowVolume = combined < 10;
+      const direction = calcDirection(curr, base);
+      const percentChange = calcPercentChange(curr, base);
+
+      changes.push({
+        eventName,
+        currentCount: curr,
+        baselineCount: base,
+        direction,
+        percentChange,
+        lowVolume,
+      });
+    }
+
+    changes.sort(
+      (a, b) => Math.abs(b.percentChange) - Math.abs(a.percentChange),
+    );
+
+    const significantChanges = changes.filter(
+      (c) => !c.lowVolume && Math.abs(c.percentChange) > 30,
+    );
+
+    const overallDirection = calcDirection(currentTotal, baselineTotal);
+    const overallPct = calcPercentChange(currentTotal, baselineTotal);
+
+    return {
+      overall: {
+        currentTotal,
+        baselineTotal,
+        direction: overallDirection,
+        percentChange: overallPct,
+      },
+      changes,
+      significantChanges,
+      currentPeriod,
+      baselinePeriod,
+      method: ACTIVITY_CHANGES_METHOD,
+      insufficientData: false,
+    };
+  }
+}
+
+function calcDirection(
+  current: number,
+  baseline: number,
+): 'increase' | 'decrease' | 'unchanged' {
+  if (current > baseline) return 'increase';
+  if (current < baseline) return 'decrease';
+  return 'unchanged';
+}
+
+function calcPercentChange(current: number, baseline: number): number {
+  if (baseline === 0) {
+    return current > 0 ? 100 : 0;
+  }
+  return Math.round(((current - baseline) / baseline) * 1000) / 10;
 }

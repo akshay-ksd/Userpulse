@@ -10,6 +10,7 @@ describe('AnalyticsController', () => {
     getActiveUsers: ReturnType<typeof vi.fn>;
     getFeatureAdoption: ReturnType<typeof vi.fn>;
     getFeatureUsageTrends: ReturnType<typeof vi.fn>;
+    getActivityChanges: ReturnType<typeof vi.fn>;
   };
   const user = { id: 'user1', email: 'test@example.com', name: 'Test' };
 
@@ -19,6 +20,7 @@ describe('AnalyticsController', () => {
       getActiveUsers: vi.fn(),
       getFeatureAdoption: vi.fn(),
       getFeatureUsageTrends: vi.fn(),
+      getActivityChanges: vi.fn(),
     };
     controller = new AnalyticsController(
       service as unknown as AnalyticsService,
@@ -206,6 +208,48 @@ describe('AnalyticsController', () => {
     await expect(
       controller.getFeatureUsageTrends(user as any, 'org1', 'proj1', {
         featureId: 'f1',
+      }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('returns activity changes for valid params', async () => {
+    const result = {
+      overall: {
+        currentTotal: 100,
+        baselineTotal: 80,
+        direction: 'increase',
+        percentChange: 25,
+      },
+      changes: [],
+      significantChanges: [],
+      currentPeriod: { startDate: '2026-11-08', endDate: '2026-11-14' },
+      baselinePeriod: { startDate: '2026-11-01', endDate: '2026-11-07' },
+      method: 'Activity comparison...',
+      insufficientData: false,
+    };
+    service.getActivityChanges.mockResolvedValue(result);
+
+    const response = await controller.getActivityChanges(
+      user as any,
+      'org1',
+      'proj1',
+      { startDate: '2026-11-08', endDate: '2026-11-14' },
+    );
+
+    expect(response).toEqual(result);
+    expect(service.getActivityChanges).toHaveBeenCalledWith(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-08',
+      '2026-11-14',
+    );
+  });
+
+  it('throws BadRequestException for missing dates on activity-changes', async () => {
+    await expect(
+      controller.getActivityChanges(user as any, 'org1', 'proj1', {
+        endDate: '2026-11-14',
       }),
     ).rejects.toThrow(BadRequestException);
   });

@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 20 |
+| Not Started | 19 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 36 |
-| Overall completion | 64% |
+| Done | 37 |
+| Overall completion | 66% |
 
 **Last updated:** 2026-11-17
 
@@ -133,7 +133,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-036 | Define a funnel | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
-| US-037 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-037 | View funnel conversion and drop-off | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-038 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-039 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-040 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1618,5 +1618,44 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated checks on 2026-11-17; results recorded above.
+
+### US-037 — View funnel conversion and drop-off
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-17
+- **Last updated:** 2026-11-17
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-037-view-funnel-conversion.md`
+
+**Acceptance criteria**
+- [x] User counts for each step are displayed. — Analytics endpoint returns per-step user counts; web UI shows step table with user counts.
+- [x] Conversion and drop-off between steps are displayed. — Conversion rate (from entry), drop-off count, and drop-off rate calculated and shown per step.
+- [x] Identity, ordering, and conversion-window rules are consistent. — Uses COALESCE(userId, anonymousId) identity rule (same as other analytics). Sequential ordering by timestamp. Response includes rule descriptions.
+- [x] The date range and funnel definition are visible. — Date range shown in analytics header. Funnel name and steps visible.
+- [x] Drop-off is not presented as proof of a specific cause. — Disclaimer text included in API response and displayed in UI.
+
+**Implementation notes**
+- API: Added `getAnalytics()` to `FunnelsService` with CTE-based SQL query for sequential funnel analysis. Each step CTE joins to the previous step's users who performed the current step's event at a later timestamp.
+- API: New `GET /organizations/:orgId/projects/:projectId/funnels/:funnelId/analytics` endpoint on `FunnelsController` with date range query params.
+- API: New `funnel-analytics-query.dto.ts` with Zod validation (same pattern as existing analytics DTOs).
+- Web: Updated `FunnelsSection` to accept `startDate`/`endDate` props. Added "Analytics" button per funnel. Analytics display includes step table, summary stats, rule descriptions, and disclaimer.
+- Key files: `apps/api/src/funnels/funnels.service.ts`, `apps/api/src/funnels/funnels.controller.ts`, `apps/api/src/funnels/funnel-analytics-query.dto.ts`, `apps/api/src/funnels/funnels.service.spec.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 211 passed (5 new funnel analytics tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2E tests require PostgreSQL; not available in this cloud environment.
+- Conversion window configuration (JOUR-04, P1) deferred.
+- No caching — funnel analytics computed per request.
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

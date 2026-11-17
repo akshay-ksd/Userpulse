@@ -2070,7 +2070,41 @@ type FunnelDetailInfo = {
   createdAt: string;
 };
 
-function FunnelsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+type FunnelStepAnalytics = {
+  stepOrder: number;
+  eventName: string;
+  users: number;
+  conversionRate: number;
+  dropOff: number;
+  dropOffRate: number;
+};
+
+type FunnelAnalyticsResult = {
+  funnelId: string;
+  funnelName: string;
+  steps: FunnelStepAnalytics[];
+  totalEnteredUsers: number;
+  totalConvertedUsers: number;
+  overallConversionRate: number;
+  startDate: string;
+  endDate: string;
+  identityRule: string;
+  orderingRule: string;
+  conversionWindow: string;
+  disclaimer: string;
+};
+
+function FunnelsSection({
+  orgId,
+  projectId,
+  startDate,
+  endDate,
+}: {
+  orgId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}) {
   const [funnels, setFunnels] = useState<FunnelInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -2080,6 +2114,9 @@ function FunnelsSection({ orgId, projectId }: { orgId: string; projectId: string
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [eventNames, setEventNames] = useState<string[]>([]);
+  const [analyticsId, setAnalyticsId] = useState<string | null>(null);
+  const [analytics, setAnalytics] = useState<FunnelAnalyticsResult | null>(null);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   const baseUrl = `${API_URL}/organizations/${orgId}/projects/${projectId}/funnels`;
 
@@ -2210,6 +2247,32 @@ function FunnelsSection({ orgId, projectId }: { orgId: string; projectId: string
     }
   }
 
+  async function handleViewAnalytics(funnelId: string) {
+    if (analyticsId === funnelId) {
+      setAnalyticsId(null);
+      setAnalytics(null);
+      return;
+    }
+    setAnalyticsId(funnelId);
+    setAnalytics(null);
+    setAnalyticsLoading(true);
+    try {
+      const res = await fetch(
+        `${baseUrl}/${funnelId}/analytics?startDate=${startDate}&endDate=${endDate}`,
+        { credentials: 'include' },
+      );
+      if (res.ok) {
+        setAnalytics(await res.json());
+      } else {
+        setError('Failed to load funnel analytics.');
+      }
+    } catch {
+      setError('Network error loading analytics.');
+    } finally {
+      setAnalyticsLoading(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -2249,6 +2312,12 @@ function FunnelsSection({ orgId, projectId }: { orgId: string; projectId: string
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleViewAnalytics(funnel.id)}
+                    className="rounded px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950"
+                  >
+                    {analyticsId === funnel.id ? 'Hide Analytics' : 'Analytics'}
+                  </button>
                   <button
                     onClick={() => handleExpand(funnel.id)}
                     className="rounded px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
@@ -2297,6 +2366,108 @@ function FunnelsSection({ orgId, projectId }: { orgId: string; projectId: string
                     onCancel={() => setEditingId(null)}
                     submitLabel="Save"
                   />
+                </div>
+              )}
+              {analyticsId === funnel.id && (
+                <div className="border-t border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+                  {analyticsLoading ? (
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading analytics…</p>
+                  ) : analytics ? (
+                    <div className="flex flex-col gap-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-black dark:text-zinc-50">
+                          {analytics.funnelName}
+                        </span>
+                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                          {analytics.startDate} to {analytics.endDate}
+                        </span>
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-black/[.08] text-left text-xs text-zinc-500 dark:border-white/[.08] dark:text-zinc-400">
+                              <th className="pb-2 pr-4 font-medium">Step</th>
+                              <th className="pb-2 pr-4 font-medium">Event</th>
+                              <th className="pb-2 pr-4 text-right font-medium">Users</th>
+                              <th className="pb-2 pr-4 text-right font-medium">Conversion</th>
+                              <th className="pb-2 pr-4 text-right font-medium">Drop-off</th>
+                              <th className="pb-2 text-right font-medium">Drop-off %</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {analytics.steps.map((step) => (
+                              <tr
+                                key={step.stepOrder}
+                                className="border-b border-black/[.05] last:border-b-0 dark:border-white/[.05]"
+                              >
+                                <td className="py-2 pr-4 text-zinc-700 dark:text-zinc-300">
+                                  {step.stepOrder + 1}
+                                </td>
+                                <td className="py-2 pr-4 font-medium text-black dark:text-zinc-50">
+                                  {step.eventName}
+                                </td>
+                                <td className="py-2 pr-4 text-right tabular-nums text-black dark:text-zinc-50">
+                                  {step.users.toLocaleString()}
+                                </td>
+                                <td className="py-2 pr-4 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                                  {step.conversionRate}%
+                                </td>
+                                <td className="py-2 pr-4 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                                  {step.stepOrder === 0 ? '—' : step.dropOff.toLocaleString()}
+                                </td>
+                                <td className="py-2 text-right tabular-nums text-zinc-700 dark:text-zinc-300">
+                                  {step.stepOrder === 0 ? '—' : `${step.dropOffRate}%`}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      <div className="flex gap-6 rounded-lg bg-zinc-50 px-4 py-3 dark:bg-zinc-800/50">
+                        <div className="flex flex-col">
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">Entered</span>
+                          <span className="text-sm font-medium tabular-nums text-black dark:text-zinc-50">
+                            {analytics.totalEnteredUsers.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Converted
+                          </span>
+                          <span className="text-sm font-medium tabular-nums text-black dark:text-zinc-50">
+                            {analytics.totalConvertedUsers.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                            Overall conversion
+                          </span>
+                          <span className="text-sm font-medium tabular-nums text-black dark:text-zinc-50">
+                            {analytics.overallConversionRate}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-1 text-xs text-zinc-400 dark:text-zinc-500">
+                        <p>
+                          <strong>Identity:</strong> {analytics.identityRule}
+                        </p>
+                        <p>
+                          <strong>Ordering:</strong> {analytics.orderingRule}
+                        </p>
+                        <p>
+                          <strong>Window:</strong> {analytics.conversionWindow}
+                        </p>
+                        <p className="italic">{analytics.disclaimer}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                      No analytics data available.
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -2719,7 +2890,12 @@ function ProjectDetail() {
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <FunnelsSection orgId={orgId} projectId={project.id} />
+      <FunnelsSection
+        orgId={orgId}
+        projectId={project.id}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

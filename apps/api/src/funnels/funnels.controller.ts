@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -7,6 +8,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import { CurrentUser } from '@nestjs/authentication';
 import type { AuthUser } from '../auth/auth-user.js';
@@ -18,10 +20,12 @@ import {
   updateFunnelSchema,
   type UpdateFunnelDto,
 } from './update-funnel.dto.js';
+import { funnelAnalyticsQuerySchema } from './funnel-analytics-query.dto.js';
 import {
   FunnelsService,
   type FunnelInfo,
   type FunnelDetailInfo,
+  type FunnelAnalyticsResult,
 } from './funnels.service.js';
 
 @Controller('organizations/:orgId/projects/:projectId/funnels')
@@ -55,6 +59,32 @@ export class FunnelsController {
     @Param('projectId') projectId: string,
   ): Promise<string[]> {
     return this.funnelsService.getProjectEventNames(orgId, projectId, user.id);
+  }
+
+  @Get(':funnelId/analytics')
+  getAnalytics(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+    @Param('funnelId') funnelId: string,
+    @Query() query: Record<string, string>,
+  ): Promise<FunnelAnalyticsResult> {
+    const parsed = funnelAnalyticsQuerySchema.safeParse(query);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map((i) => i.message).join('; '),
+      );
+    }
+
+    const { startDate, endDate } = parsed.data;
+    return this.funnelsService.getAnalytics(
+      orgId,
+      projectId,
+      user.id,
+      funnelId,
+      startDate,
+      endDate,
+    );
   }
 
   @Get(':funnelId')

@@ -29,6 +29,7 @@ function mockPrisma() {
     event: {
       groupBy: vi.fn(),
     },
+    $queryRawUnsafe: vi.fn(),
     $transaction: vi.fn((fn: (tx: unknown) => Promise<unknown>) =>
       fn({
         funnel: txFunnel,
@@ -365,6 +366,176 @@ describe('FunnelsService', () => {
       );
 
       expect(result).toEqual(['click_button', 'page_view', 'sign_up']);
+    });
+  });
+
+  describe('getAnalytics', () => {
+    const threeStepFunnel = {
+      id: 'fun-1',
+      projectId: 'proj-1',
+      name: 'Onboarding',
+      createdAt: now,
+      updatedAt: now,
+      steps: [
+        { id: 's1', stepOrder: 0, eventName: 'sign_up' },
+        { id: 's2', stepOrder: 1, eventName: 'complete_profile' },
+        { id: 's3', stepOrder: 2, eventName: 'first_action' },
+      ],
+    };
+
+    it('calculates conversion and drop-off for 3-step funnel', async () => {
+      const prisma = mockPrisma();
+      setupAccess(prisma);
+      (prisma.funnel.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        threeStepFunnel,
+      );
+      (prisma.$queryRawUnsafe as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          step_0_count: BigInt(100),
+          step_1_count: BigInt(60),
+          step_2_count: BigInt(30),
+        },
+      ]);
+
+      const service = new FunnelsService(prisma);
+      const result = await service.getAnalytics(
+        'org-1',
+        'proj-1',
+        'user-1',
+        'fun-1',
+        '2026-11-01',
+        '2026-11-17',
+      );
+
+      expect(result.funnelId).toBe('fun-1');
+      expect(result.funnelName).toBe('Onboarding');
+      expect(result.totalEnteredUsers).toBe(100);
+      expect(result.totalConvertedUsers).toBe(30);
+      expect(result.overallConversionRate).toBe(30);
+      expect(result.steps).toHaveLength(3);
+
+      // Step 0: 100 users, 100% conversion, no drop-off
+      expect(result.steps[0].users).toBe(100);
+      expect(result.steps[0].conversionRate).toBe(100);
+      expect(result.steps[0].dropOff).toBe(0);
+      expect(result.steps[0].dropOffRate).toBe(0);
+
+      // Step 1: 60 users, 60% conversion, 40 drop-off (40%)
+      expect(result.steps[1].users).toBe(60);
+      expect(result.steps[1].conversionRate).toBe(60);
+      expect(result.steps[1].dropOff).toBe(40);
+      expect(result.steps[1].dropOffRate).toBe(40);
+
+      // Step 2: 30 users, 30% conversion, 30 drop-off (50%)
+      expect(result.steps[2].users).toBe(30);
+      expect(result.steps[2].conversionRate).toBe(30);
+      expect(result.steps[2].dropOff).toBe(30);
+      expect(result.steps[2].dropOffRate).toBe(50);
+
+      expect(result.startDate).toBe('2026-11-01');
+      expect(result.endDate).toBe('2026-11-17');
+      expect(result.disclaimer).toContain('does not imply a specific cause');
+    });
+
+    it('returns all zeros when no events match', async () => {
+      const prisma = mockPrisma();
+      setupAccess(prisma);
+      (prisma.funnel.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        threeStepFunnel,
+      );
+      (prisma.$queryRawUnsafe as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          step_0_count: BigInt(0),
+          step_1_count: BigInt(0),
+          step_2_count: BigInt(0),
+        },
+      ]);
+
+      const service = new FunnelsService(prisma);
+      const result = await service.getAnalytics(
+        'org-1',
+        'proj-1',
+        'user-1',
+        'fun-1',
+        '2026-11-01',
+        '2026-11-17',
+      );
+
+      expect(result.totalEnteredUsers).toBe(0);
+      expect(result.totalConvertedUsers).toBe(0);
+      expect(result.overallConversionRate).toBe(0);
+      result.steps.forEach((step) => {
+        expect(step.users).toBe(0);
+        expect(step.conversionRate).toBe(0);
+      });
+    });
+
+    it('throws NotFoundException for non-member', async () => {
+      const prisma = mockPrisma();
+      (
+        prisma.organizationMember.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(null);
+
+      const service = new FunnelsService(prisma);
+      await expect(
+        service.getAnalytics(
+          'org-1',
+          'proj-1',
+          'user-1',
+          'fun-1',
+          '2026-11-01',
+          '2026-11-17',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException for missing funnel', async () => {
+      const prisma = mockPrisma();
+      setupAccess(prisma);
+      (prisma.funnel.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        null,
+      );
+
+      const service = new FunnelsService(prisma);
+      await expect(
+        service.getAnalytics(
+          'org-1',
+          'proj-1',
+          'user-1',
+          'fun-999',
+          '2026-11-01',
+          '2026-11-17',
+        ),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('includes identity and ordering rule metadata', async () => {
+      const prisma = mockPrisma();
+      setupAccess(prisma);
+      (prisma.funnel.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(
+        threeStepFunnel,
+      );
+      (prisma.$queryRawUnsafe as ReturnType<typeof vi.fn>).mockResolvedValue([
+        {
+          step_0_count: BigInt(10),
+          step_1_count: BigInt(5),
+          step_2_count: BigInt(2),
+        },
+      ]);
+
+      const service = new FunnelsService(prisma);
+      const result = await service.getAnalytics(
+        'org-1',
+        'proj-1',
+        'user-1',
+        'fun-1',
+        '2026-11-01',
+        '2026-11-17',
+      );
+
+      expect(result.identityRule).toContain('COALESCE');
+      expect(result.orderingRule).toContain('step order');
+      expect(result.conversionWindow).toContain('Full date range');
     });
   });
 });

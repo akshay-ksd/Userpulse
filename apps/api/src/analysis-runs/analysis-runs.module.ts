@@ -4,11 +4,19 @@ import { RecommendationsModule } from '../recommendations/recommendations.module
 import { AnalysisRunsController } from './analysis-runs.controller.js';
 import { AnalysisRunsService } from './analysis-runs.service.js';
 import { AnalysisRunProcessorService } from './analysis-run-processor.service.js';
+import { AnalysisScheduleController } from './analysis-schedule.controller.js';
+import { AnalysisScheduleService } from './analysis-schedule.service.js';
+import { ScheduledAnalysisRunnerService } from './scheduled-analysis-runner.service.js';
 
 @Module({
   imports: [PrismaModule, RecommendationsModule],
-  controllers: [AnalysisRunsController],
-  providers: [AnalysisRunsService, AnalysisRunProcessorService],
+  controllers: [AnalysisRunsController, AnalysisScheduleController],
+  providers: [
+    AnalysisRunsService,
+    AnalysisRunProcessorService,
+    AnalysisScheduleService,
+    ScheduledAnalysisRunnerService,
+  ],
   exports: [AnalysisRunsService],
 })
 export class AnalysisRunsModule {}

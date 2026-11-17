@@ -134,6 +134,7 @@ model Project {
   funnels              Funnel[]
   analysisRuns         AnalysisRun[]
   recommendations      Recommendation[]
+  analysisSchedule     AnalysisSchedule?
 
   @@index([organizationId])
   @@map("projects")
@@ -293,6 +294,25 @@ model Recommendation {
   @@index([projectId, createdAt])
   @@index([projectId, priorityScore(sort: Desc)])
   @@map("recommendations")
+}
+
+model AnalysisSchedule {
+  id             String    @id @default(uuid())
+  projectId      String    @unique
+  organizationId String
+  intervalHours  Int
+  enabled        Boolean   @default(true)
+  lastRunAt      DateTime? @db.Timestamptz(6)
+  nextRunAt      DateTime  @db.Timestamptz(6)
+  createdBy      String
+  updatedBy      String
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextRunAt])
+  @@map("analysis_schedules")
 }
 
 model FunnelStep {

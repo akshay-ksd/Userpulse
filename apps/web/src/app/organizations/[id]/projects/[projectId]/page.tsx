@@ -2050,6 +2050,415 @@ function FeaturesSection({
   );
 }
 
+type FunnelInfo = {
+  id: string;
+  name: string;
+  stepCount: number;
+  createdAt: string;
+};
+
+type FunnelStepInfo = {
+  id: string;
+  stepOrder: number;
+  eventName: string;
+};
+
+type FunnelDetailInfo = {
+  id: string;
+  name: string;
+  steps: FunnelStepInfo[];
+  createdAt: string;
+};
+
+function FunnelsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [funnels, setFunnels] = useState<FunnelInfo[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedFunnel, setExpandedFunnel] = useState<FunnelDetailInfo | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [eventNames, setEventNames] = useState<string[]>([]);
+
+  const baseUrl = `${API_URL}/organizations/${orgId}/projects/${projectId}/funnels`;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const [funnelsRes, eventsRes] = await Promise.all([
+          fetch(baseUrl, { credentials: 'include' }),
+          fetch(`${baseUrl}/event-names`, { credentials: 'include' }),
+        ]);
+        if (cancelled) return;
+        if (funnelsRes.ok) setFunnels(await funnelsRes.json());
+        if (eventsRes.ok) setEventNames(await eventsRes.json());
+      } catch {
+        if (!cancelled) setError('Failed to load funnels.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function handleCreate(name: string, steps: { eventName: string }[]) {
+    setError('');
+    try {
+      const res = await fetch(baseUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, steps }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to create funnel.');
+        return;
+      }
+      const created = await res.json();
+      setFunnels((prev) => [
+        {
+          id: created.id,
+          name: created.name,
+          stepCount: created.steps.length,
+          createdAt: created.createdAt,
+        },
+        ...prev,
+      ]);
+      setShowCreate(false);
+    } catch {
+      setError('Network error. Please try again.');
+    }
+  }
+
+  async function handleUpdate(funnelId: string, name: string, steps: { eventName: string }[]) {
+    setError('');
+    try {
+      const res = await fetch(`${baseUrl}/${funnelId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ name, steps }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.message ?? 'Failed to update funnel.');
+        return;
+      }
+      const updated = await res.json();
+      setFunnels((prev) =>
+        prev.map((f) =>
+          f.id === updated.id
+            ? {
+                id: updated.id,
+                name: updated.name,
+                stepCount: updated.steps.length,
+                createdAt: updated.createdAt,
+              }
+            : f,
+        ),
+      );
+      setEditingId(null);
+      if (expandedId === funnelId) {
+        setExpandedFunnel(updated);
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    }
+  }
+
+  async function handleDelete(funnelId: string) {
+    if (!confirm('Are you sure you want to delete this funnel?')) return;
+    setDeletingId(funnelId);
+    setError('');
+    try {
+      const res = await fetch(`${baseUrl}/${funnelId}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (res.ok || res.status === 204) {
+        setFunnels((prev) => prev.filter((f) => f.id !== funnelId));
+        if (expandedId === funnelId) {
+          setExpandedId(null);
+          setExpandedFunnel(null);
+        }
+      }
+    } catch {
+      setError('Network error. Please try again.');
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  async function handleExpand(funnelId: string) {
+    if (expandedId === funnelId) {
+      setExpandedId(null);
+      setExpandedFunnel(null);
+      return;
+    }
+    setExpandedId(funnelId);
+    try {
+      const res = await fetch(`${baseUrl}/${funnelId}`, { credentials: 'include' });
+      if (res.ok) setExpandedFunnel(await res.json());
+    } catch {
+      /* ignore */
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Funnels</h2>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+        >
+          {showCreate ? 'Cancel' : 'New funnel'}
+        </button>
+      </div>
+
+      {showCreate && (
+        <FunnelForm eventNames={eventNames} onSubmit={handleCreate} submitLabel="Create" />
+      )}
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {loading ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading funnels…</p>
+      ) : funnels.length === 0 ? (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          No funnels defined yet. Create one to track conversion through a product flow.
+        </p>
+      ) : (
+        <div className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
+          {funnels.map((funnel) => (
+            <div key={funnel.id} className="flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3">
+                <div className="flex flex-col gap-0.5">
+                  <span className="text-sm font-medium text-black dark:text-zinc-50">
+                    {funnel.name}
+                  </span>
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    {funnel.stepCount} step{funnel.stepCount === 1 ? '' : 's'} · Created{' '}
+                    {new Date(funnel.createdAt).toLocaleDateString()}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleExpand(funnel.id)}
+                    className="rounded px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  >
+                    {expandedId === funnel.id ? 'Hide' : 'View'}
+                  </button>
+                  <button
+                    onClick={() => setEditingId(editingId === funnel.id ? null : funnel.id)}
+                    className="rounded px-2 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={() => handleDelete(funnel.id)}
+                    disabled={deletingId === funnel.id}
+                    className="rounded px-2 py-1 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-950"
+                  >
+                    {deletingId === funnel.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              </div>
+              {expandedId === funnel.id && expandedFunnel && (
+                <div className="border-t border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+                  <ol className="flex flex-col gap-1">
+                    {expandedFunnel.steps.map((step, i) => (
+                      <li
+                        key={step.id}
+                        className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300"
+                      >
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+                          {i + 1}
+                        </span>
+                        {step.eventName}
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+              {editingId === funnel.id && expandedFunnel && (
+                <div className="border-t border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+                  <FunnelForm
+                    eventNames={eventNames}
+                    initialName={expandedFunnel.name}
+                    initialSteps={expandedFunnel.steps.map((s) => ({ eventName: s.eventName }))}
+                    onSubmit={(name, steps) => handleUpdate(funnel.id, name, steps)}
+                    onCancel={() => setEditingId(null)}
+                    submitLabel="Save"
+                  />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function FunnelForm({
+  eventNames,
+  initialName = '',
+  initialSteps,
+  onSubmit,
+  onCancel,
+  submitLabel,
+}: {
+  eventNames: string[];
+  initialName?: string;
+  initialSteps?: { eventName: string }[];
+  onSubmit: (name: string, steps: { eventName: string }[]) => void;
+  onCancel?: () => void;
+  submitLabel: string;
+}) {
+  const [name, setName] = useState(initialName);
+  const [steps, setSteps] = useState<{ eventName: string }[]>(
+    initialSteps ?? [{ eventName: '' }, { eventName: '' }],
+  );
+  const [submitting, setSubmitting] = useState(false);
+
+  function addStep() {
+    if (steps.length < 20) setSteps([...steps, { eventName: '' }]);
+  }
+
+  function removeStep(index: number) {
+    if (steps.length > 2) setSteps(steps.filter((_, i) => i !== index));
+  }
+
+  function updateStep(index: number, eventName: string) {
+    setSteps(steps.map((s, i) => (i === index ? { eventName } : s)));
+  }
+
+  function moveStep(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= steps.length) return;
+    const updated = [...steps];
+    [updated[index], updated[target]] = [updated[target], updated[index]];
+    setSteps(updated);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (steps.some((s) => !s.eventName.trim())) return;
+    setSubmitting(true);
+    try {
+      await onSubmit(name, steps);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const listId = `event-names-${initialName || 'new'}`;
+
+  return (
+    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      <input
+        type="text"
+        required
+        placeholder="Funnel name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        disabled={submitting}
+        className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+      />
+
+      <div className="flex flex-col gap-2">
+        <span className="text-xs font-medium text-zinc-600 dark:text-zinc-400">
+          Steps (min 2, max 20)
+        </span>
+        {steps.map((step, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-xs font-medium text-zinc-600 dark:bg-zinc-700 dark:text-zinc-300">
+              {i + 1}
+            </span>
+            <input
+              type="text"
+              required
+              placeholder="Event name"
+              value={step.eventName}
+              onChange={(e) => updateStep(i, e.target.value)}
+              list={listId}
+              disabled={submitting}
+              className="flex-1 rounded-lg border border-black/[.15] bg-transparent px-3 py-1.5 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
+            />
+            <button
+              type="button"
+              onClick={() => moveStep(i, -1)}
+              disabled={i === 0 || submitting}
+              className="rounded px-1.5 py-1 text-xs text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              title="Move up"
+            >
+              ↑
+            </button>
+            <button
+              type="button"
+              onClick={() => moveStep(i, 1)}
+              disabled={i === steps.length - 1 || submitting}
+              className="rounded px-1.5 py-1 text-xs text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              title="Move down"
+            >
+              ↓
+            </button>
+            <button
+              type="button"
+              onClick={() => removeStep(i)}
+              disabled={steps.length <= 2 || submitting}
+              className="rounded px-1.5 py-1 text-xs text-red-500 hover:bg-red-50 disabled:opacity-30 dark:text-red-400 dark:hover:bg-red-950"
+              title="Remove step"
+            >
+              ×
+            </button>
+          </div>
+        ))}
+        <datalist id={listId}>
+          {eventNames.map((en) => (
+            <option key={en} value={en} />
+          ))}
+        </datalist>
+        <button
+          type="button"
+          onClick={addStep}
+          disabled={steps.length >= 20 || submitting}
+          className="self-start rounded-lg border border-dashed border-black/[.15] px-3 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-400 dark:hover:bg-zinc-900"
+        >
+          + Add step
+        </button>
+      </div>
+
+      <div className="flex gap-2 self-end">
+        {onCancel && (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={submitting}
+            className="rounded-lg border border-black/[.15] px-4 py-2 text-sm font-medium text-black transition-colors hover:bg-zinc-50 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:hover:bg-zinc-900"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="submit"
+          disabled={submitting}
+          className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+        >
+          {submitting ? 'Saving…' : submitLabel}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function ProjectDetail() {
   const { id: orgId, projectId } = useParams<{ id: string; projectId: string }>();
   const router = useRouter();
@@ -2307,6 +2716,10 @@ function ProjectDetail() {
         startDate={dateRange.startDate}
         endDate={dateRange.endDate}
       />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <FunnelsSection orgId={orgId} projectId={project.id} />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

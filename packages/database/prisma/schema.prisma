@@ -131,6 +131,7 @@ model Project {
   apiKeys              ProjectApiKey[]
   features             Feature[]
   featureEventMappings FeatureEventMapping[]
+  funnels              Funnel[]
 
   @@index([organizationId])
   @@map("projects")
@@ -216,4 +217,32 @@ model Event {
   @@index([projectId, validationStatus])
   @@index([projectId, eventTimestamp])
   @@map("events")
+}
+
+model Funnel {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  steps   FunnelStep[]
+
+  @@index([projectId])
+  @@map("funnels")
+}
+
+model FunnelStep {
+  id        String   @id @default(uuid())
+  funnelId  String
+  stepOrder Int
+  eventName String
+  createdAt DateTime @default(now())
+
+  funnel Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@unique([funnelId, stepOrder])
+  @@index([funnelId])
+  @@map("funnel_steps")
 }

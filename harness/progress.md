@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 21 |
+| Not Started | 20 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 35 |
-| Overall completion | 63% |
+| Done | 36 |
+| Overall completion | 64% |
 
 **Last updated:** 2026-11-17
 
@@ -132,7 +132,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-036 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-036 | Define a funnel | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-037 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-038 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-039 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1574,6 +1574,47 @@ A story may be marked **Done** only when:
 **Blockers / follow-up**
 - Date range selection is ephemeral (resets on page reload). URL query param persistence can be added later.
 - No browser-based UI testing available in this cloud environment.
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated checks on 2026-11-17; results recorded above.
+
+### US-036 — Define a funnel
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-17
+- **Last updated:** 2026-11-17
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-036-define-funnel.md`
+
+**Acceptance criteria**
+- [x] A funnel has a name and ordered event steps. — Funnel model with name, FunnelStep model with stepOrder and eventName.
+- [x] Each step references an event in the selected project. — Steps use eventName strings; event-names endpoint provides suggestions.
+- [x] A funnel contains at least two steps. — Zod validation enforces min 2 steps on create and update.
+- [x] The user can edit the funnel. — PATCH endpoint with full step replacement; inline edit UI with reorder controls.
+- [x] Funnel definitions are project-scoped. — Funnel.projectId FK; all endpoints nested under /organizations/:orgId/projects/:projectId/funnels.
+
+**Implementation notes**
+- New Prisma models: `Funnel` (funnels table) and `FunnelStep` (funnel_steps table) with cascade delete.
+- Full CRUD API: FunnelsModule, FunnelsService, FunnelsController following FeaturesModule pattern.
+- Additional `GET /event-names` endpoint returns distinct PROCESSED event names for dropdown suggestions.
+- Step replacement strategy: on update, delete all existing steps and create new ones in a transaction.
+- Frontend: `FunnelsSection` and `FunnelForm` components added to project page with expand/collapse detail, inline edit, step reordering (up/down buttons), and event name datalist.
+- Migration SQL created manually (no PostgreSQL available in cloud environment).
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 206 passed (13 new funnel tests).
+- [x] Unit tests: `pnpm --filter @userpulse/sdk test` — 92 passed.
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2E tests written but not runnable (no PostgreSQL in cloud environment).
+- No browser-based UI testing available in this cloud environment.
+- Funnel conversion/drop-off analytics is US-037 scope.
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated checks on 2026-11-17; results recorded above.

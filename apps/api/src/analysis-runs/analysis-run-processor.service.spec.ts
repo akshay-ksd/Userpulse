@@ -189,4 +189,199 @@ describe('AnalysisRunProcessorService', () => {
     expect(lastUpdateData!.status).toBe('FAILED');
     expect(lastUpdateData!.statusMessage).toContain('DB error');
   });
+
+  describe('deduplication', () => {
+    const generatedRec = {
+      title: 'Low adoption',
+      summary: 'Feature X has low adoption',
+      suggestedAction: 'Improve onboarding',
+      category: 'feature_adoption',
+      affectedFeatureId: 'feat-1',
+      affectedArea: null,
+      evidence: { type: 'feature_adoption' },
+      confidence: 0.8,
+      impact: 0.6,
+      reach: 0.5,
+      priorityScore: 0.24,
+    };
+
+    function buildTxMocks(
+      existingPublished: Array<{
+        id: string;
+        category: string;
+        affectedFeatureId: string | null;
+        affectedArea: string | null;
+      }>,
+    ) {
+      const createFn = vi.fn().mockResolvedValue({ id: 'new-rec-1' });
+      const updateManyFn = vi.fn().mockResolvedValue({ count: 1 });
+      const findManyFn = vi.fn().mockResolvedValue(existingPublished);
+
+      return {
+        $queryRaw: vi.fn().mockResolvedValue([{ id: 'run-1' }]),
+        analysisRun: {
+          update: vi.fn().mockResolvedValue({}),
+          findUniqueOrThrow: vi.fn().mockResolvedValue(queuedRun),
+        },
+        event: { count: vi.fn().mockResolvedValue(50) },
+        recommendation: {
+          findMany: findManyFn,
+          create: createFn,
+          updateMany: updateManyFn,
+        },
+        _create: createFn,
+        _updateMany: updateManyFn,
+        _findMany: findManyFn,
+      };
+    }
+
+    it('supersedes existing recommendation with same category and affectedFeatureId', async () => {
+      let txMocks: ReturnType<typeof buildTxMocks>;
+
+      (
+        recommendationGenerator.generateRecommendations as ReturnType<
+          typeof vi.fn
+        >
+      ).mockResolvedValue([generatedRec]);
+
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          txMocks = buildTxMocks([
+            {
+              id: 'old-rec-1',
+              category: 'feature_adoption',
+              affectedFeatureId: 'feat-1',
+              affectedArea: null,
+            },
+          ]);
+          return fn(txMocks);
+        },
+      );
+
+      await service.processNextRun();
+
+      expect(txMocks!._create).toHaveBeenCalledOnce();
+      expect(txMocks!._updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['old-rec-1'] }, status: 'PUBLISHED' },
+        data: { status: 'SUPERSEDED', supersededById: 'new-rec-1' },
+      });
+    });
+
+    it('does NOT supersede when category differs', async () => {
+      let txMocks: ReturnType<typeof buildTxMocks>;
+
+      (
+        recommendationGenerator.generateRecommendations as ReturnType<
+          typeof vi.fn
+        >
+      ).mockResolvedValue([generatedRec]);
+
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          txMocks = buildTxMocks([
+            {
+              id: 'old-rec-1',
+              category: 'activity_change',
+              affectedFeatureId: 'feat-1',
+              affectedArea: null,
+            },
+          ]);
+          return fn(txMocks);
+        },
+      );
+
+      await service.processNextRun();
+
+      expect(txMocks!._create).toHaveBeenCalledOnce();
+      expect(txMocks!._updateMany).not.toHaveBeenCalled();
+    });
+
+    it('does NOT supersede when affectedFeatureId differs', async () => {
+      let txMocks: ReturnType<typeof buildTxMocks>;
+
+      (
+        recommendationGenerator.generateRecommendations as ReturnType<
+          typeof vi.fn
+        >
+      ).mockResolvedValue([generatedRec]);
+
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          txMocks = buildTxMocks([
+            {
+              id: 'old-rec-1',
+              category: 'feature_adoption',
+              affectedFeatureId: 'feat-99',
+              affectedArea: null,
+            },
+          ]);
+          return fn(txMocks);
+        },
+      );
+
+      await service.processNextRun();
+
+      expect(txMocks!._create).toHaveBeenCalledOnce();
+      expect(txMocks!._updateMany).not.toHaveBeenCalled();
+    });
+
+    it('matches on affectedArea for project-wide recommendations', async () => {
+      let txMocks: ReturnType<typeof buildTxMocks>;
+      const projectWideRec = {
+        ...generatedRec,
+        category: 'activity_change',
+        affectedFeatureId: null,
+        affectedArea: 'overall',
+      };
+
+      (
+        recommendationGenerator.generateRecommendations as ReturnType<
+          typeof vi.fn
+        >
+      ).mockResolvedValue([projectWideRec]);
+
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          txMocks = buildTxMocks([
+            {
+              id: 'old-rec-1',
+              category: 'activity_change',
+              affectedFeatureId: null,
+              affectedArea: 'overall',
+            },
+          ]);
+          return fn(txMocks);
+        },
+      );
+
+      await service.processNextRun();
+
+      expect(txMocks!._updateMany).toHaveBeenCalledWith({
+        where: { id: { in: ['old-rec-1'] }, status: 'PUBLISHED' },
+        data: { status: 'SUPERSEDED', supersededById: 'new-rec-1' },
+      });
+    });
+
+    it('publishes normally when no existing match', async () => {
+      let txMocks: ReturnType<typeof buildTxMocks>;
+
+      (
+        recommendationGenerator.generateRecommendations as ReturnType<
+          typeof vi.fn
+        >
+      ).mockResolvedValue([generatedRec]);
+
+      (prisma.$transaction as ReturnType<typeof vi.fn>).mockImplementation(
+        async (fn: (tx: unknown) => Promise<unknown>) => {
+          txMocks = buildTxMocks([]);
+          return fn(txMocks);
+        },
+      );
+
+      await service.processNextRun();
+
+      expect(txMocks!._create).toHaveBeenCalledOnce();
+      expect(txMocks!._updateMany).not.toHaveBeenCalled();
+    });
+  });
 });

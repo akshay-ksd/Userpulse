@@ -20,6 +20,7 @@ export interface RecommendationInfo {
   periodStart: Date;
   periodEnd: Date;
   status: string;
+  supersededById: string | null;
   createdAt: Date;
 }
 

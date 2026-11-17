@@ -278,12 +278,15 @@ model Recommendation {
   periodStart       DateTime  @db.Timestamptz(6)
   periodEnd         DateTime  @db.Timestamptz(6)
   status            String    @default("PUBLISHED")
+  supersededById    String?
   createdAt         DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt         DateTime  @updatedAt
 
-  analysisRun AnalysisRun @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
-  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  feature     Feature?    @relation(fields: [affectedFeatureId], references: [id], onDelete: SetNull)
+  analysisRun  AnalysisRun     @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  project      Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  feature      Feature?        @relation(fields: [affectedFeatureId], references: [id], onDelete: SetNull)
+  supersededBy Recommendation? @relation("RecommendationSupersedes", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes   Recommendation[] @relation("RecommendationSupersedes")
 
   @@index([projectId, status])
   @@index([analysisRunId])

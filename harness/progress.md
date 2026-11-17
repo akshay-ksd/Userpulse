@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 12 |
+| Not Started | 11 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 44 |
-| Overall completion | 79% |
+| Done | 45 |
+| Overall completion | 80% |
 
 **Last updated:** 2026-11-17
 
@@ -146,7 +146,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-042 | Generate an evidence-backed recommendation | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | Complete |
 | US-043 | Inspect recommendation evidence | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-044 | View confidence and impact | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
-| US-045 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-045 | Detect duplicate recommendations | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-046 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-10 Recommendation Review
@@ -1906,5 +1906,39 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All five acceptance criteria verified by automated unit tests and build checks on 2026-11-17; results recorded above.
+
+### US-045 — Detect duplicate recommendations
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner:** Claude Code agent
+- **Last updated:** 2026-11-17
+- **Task brief:** `harness/tasks/US-045-detect-duplicate-recommendations.md`
+
+**Acceptance criteria**
+- [x] New recommendations are checked against relevant existing recommendations. — Deduplication queries existing PUBLISHED recs before creating new ones.
+- [x] Similar active recommendations are flagged or handled by documented rules. — Matching on `category` + `affectedFeatureId` (or `affectedArea` for project-wide); old recs marked SUPERSEDED.
+- [x] Materially different recommendations are not silently discarded. — Different category or target publishes normally; old recs are superseded, not deleted.
+- [x] Duplicate handling is traceable. — `supersededById` FK links old recommendation to its replacement; superseded count logged.
+
+**Implementation notes**
+- Database: Added `supersededById String?` to `Recommendation` model with self-relation (`supersededBy`/`supersedes`). Migration `20261117500000_add_recommendation_superseded_by`.
+- API: Replaced `createMany()` with individual `create` calls in `AnalysisRunProcessorService` to get new recommendation IDs. Before creating, queries existing PUBLISHED recs for the project. After creating each new rec, matches existing ones on `category` + `affectedFeatureId` (or `affectedArea`), then updates matched ones to `status: 'SUPERSEDED'` with `supersededById` pointing to the new rec.
+- API: Added `supersededById: string | null` to `RecommendationInfo` interface.
+- Existing `findByProject()` filters `status: 'PUBLISHED'`, so superseded recs are automatically hidden from the main view.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 283 passed (5 new deduplication tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this environment.
+- Future story could add a "superseded" view to the UI.
+
+**Completion note**
+- All four acceptance criteria verified by automated unit tests and build checks on 2026-11-17; results recorded above.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

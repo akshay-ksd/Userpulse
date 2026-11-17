@@ -87,28 +87,71 @@ export class AnalysisRunProcessorService {
               );
 
             if (recommendations.length > 0) {
-              await tx.recommendation.createMany({
-                data: recommendations.map((rec) => ({
-                  analysisRunId: runId,
-                  projectId: run.projectId,
-                  organizationId: run.organizationId,
-                  title: rec.title,
-                  summary: rec.summary,
-                  suggestedAction: rec.suggestedAction,
-                  category: rec.category,
-                  affectedFeatureId: rec.affectedFeatureId,
-                  affectedArea: rec.affectedArea,
-                  evidence: rec.evidence as Prisma.InputJsonValue,
-                  confidence: rec.confidence,
-                  impact: rec.impact,
-                  reach: rec.reach,
-                  priorityScore: rec.priorityScore,
-                  periodStart: run.periodStart,
-                  periodEnd: run.periodEnd,
-                  status: 'PUBLISHED',
-                })),
+              const existingPublished = await tx.recommendation.findMany({
+                where: { projectId: run.projectId, status: 'PUBLISHED' },
+                select: {
+                  id: true,
+                  category: true,
+                  affectedFeatureId: true,
+                  affectedArea: true,
+                },
               });
+
+              let supersededCount = 0;
+
+              for (const rec of recommendations) {
+                const created = await tx.recommendation.create({
+                  data: {
+                    analysisRunId: runId,
+                    projectId: run.projectId,
+                    organizationId: run.organizationId,
+                    title: rec.title,
+                    summary: rec.summary,
+                    suggestedAction: rec.suggestedAction,
+                    category: rec.category,
+                    affectedFeatureId: rec.affectedFeatureId,
+                    affectedArea: rec.affectedArea,
+                    evidence: rec.evidence as Prisma.InputJsonValue,
+                    confidence: rec.confidence,
+                    impact: rec.impact,
+                    reach: rec.reach,
+                    priorityScore: rec.priorityScore,
+                    periodStart: run.periodStart,
+                    periodEnd: run.periodEnd,
+                    status: 'PUBLISHED',
+                  },
+                  select: { id: true },
+                });
+
+                const matches = existingPublished.filter(
+                  (e) =>
+                    e.category === rec.category &&
+                    (rec.affectedFeatureId
+                      ? e.affectedFeatureId === rec.affectedFeatureId
+                      : e.affectedArea === rec.affectedArea),
+                );
+
+                if (matches.length > 0) {
+                  await tx.recommendation.updateMany({
+                    where: {
+                      id: { in: matches.map((m) => m.id) },
+                      status: 'PUBLISHED',
+                    },
+                    data: {
+                      status: 'SUPERSEDED',
+                      supersededById: created.id,
+                    },
+                  });
+                  supersededCount += matches.length;
+                }
+              }
+
               recommendationCount = recommendations.length;
+              if (supersededCount > 0) {
+                this.logger.log(
+                  `Analysis run ${runId}: ${supersededCount} existing recommendation(s) superseded`,
+                );
+              }
             }
           } catch (recError) {
             const message =

@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 19 |
+| Not Started | 18 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 37 |
-| Overall completion | 66% |
+| Done | 38 |
+| Overall completion | 68% |
 
 **Last updated:** 2026-11-17
 
@@ -134,7 +134,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 |---|---|---|---:|---|---|---|---|
 | US-036 | Define a funnel | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-037 | View funnel conversion and drop-off | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
-| US-038 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-038 | View common user journeys | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-039 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-040 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
@@ -1654,6 +1654,46 @@ A story may be marked **Done** only when:
 - E2E tests require PostgreSQL; not available in this cloud environment.
 - Conversion window configuration (JOUR-04, P1) deferred.
 - No caching — funnel analytics computed per request.
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.
+
+### US-038 — View common user journeys
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-17
+- **Last updated:** 2026-11-17
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-038-view-common-user-journeys.md`
+
+**Acceptance criteria**
+- [x] Common event sequences are displayed for a project and period. — `GET .../analytics/user-journeys` returns top sequences; web UI shows table with breadcrumb-style journey display.
+- [x] Relevant counts are shown. — Each sequence shows user count; summary shows total users and sequence count.
+- [x] Low-volume sequences are filtered or labeled. — Sequences below `minUsers` threshold excluded; sequences below 5% of total users labeled with "low volume" badge.
+- [x] Identity and session rules are documented. — `identityRule` and `sessionRule` strings in API response; toggleable info panel in UI.
+- [x] Data is restricted to the selected project. — Org membership and project access verified before query.
+
+**Implementation notes**
+- API: Added `getUserJourneys()` to `AnalyticsService` with CTE-based SQL. `user_events` CTE numbers events per user chronologically; self-joins extract consecutive N-step sequences; grouped and counted by distinct user.
+- API: New `userJourneysQuerySchema` in DTO file with optional `maxSteps` (2–5), `minUsers`, and `limit` params.
+- API: New `GET .../analytics/user-journeys` endpoint on `AnalyticsController`.
+- Web: New `UserJourneysSection` component with sequence length selector, journey table (breadcrumb display), low-volume badges, and identity/session rule info panel.
+- Key files: `apps/api/src/analytics/analytics.service.ts`, `apps/api/src/analytics/analytics.controller.ts`, `apps/api/src/analytics/event-activity-query.dto.ts`, `apps/api/src/analytics/__tests__/analytics.service.spec.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 217 passed (5 new user journeys tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2E tests require PostgreSQL; not available in this cloud environment.
+- No session windowing — MVP uses full date range per user identity.
+- No journey visualization (Sankey/flow) — table display only.
+- Performance: raw SQL window functions on events table; ClickHouse migration would address scale.
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.

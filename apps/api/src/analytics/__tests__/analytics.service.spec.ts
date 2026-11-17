@@ -21,6 +21,7 @@ function makePrisma() {
       count: vi.fn(),
     },
     $queryRaw: vi.fn(),
+    $queryRawUnsafe: vi.fn(),
   };
 }
 
@@ -822,5 +823,169 @@ describe('AnalyticsService — getFeatureUsageComparison', () => {
     );
 
     expect(result.features).toEqual([]);
+  });
+});
+
+describe('AnalyticsService — getUserJourneys', () => {
+  let service: AnalyticsService;
+  let prisma: ReturnType<typeof makePrisma>;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AnalyticsService(prisma as any);
+  });
+
+  it('throws NotFoundException when user is not a member', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.getUserJourneys(
+        'org1',
+        'proj1',
+        'user1',
+        '2026-11-01',
+        '2026-11-07',
+        3,
+        2,
+        20,
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws NotFoundException when project does not exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getUserJourneys(
+        'org1',
+        'proj1',
+        'user1',
+        '2026-11-01',
+        '2026-11-07',
+        3,
+        2,
+        20,
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('returns empty sequences when no users in range', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([{ count: BigInt(0) }]);
+
+    const result = await service.getUserJourneys(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+      3,
+      2,
+      20,
+    );
+
+    expect(result.sequences).toEqual([]);
+    expect(result.totalUsers).toBe(0);
+    expect(result.startDate).toBe('2026-11-01');
+    expect(result.endDate).toBe('2026-11-07');
+    expect(result.maxSteps).toBe(3);
+    expect(result.minUsers).toBe(2);
+  });
+
+  it('returns sequences sorted by user count', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([{ count: BigInt(100) }]);
+    prisma.$queryRawUnsafe.mockResolvedValue([
+      { sequence: ['login', 'dashboard', 'search'], user_count: BigInt(50) },
+      { sequence: ['login', 'dashboard', 'settings'], user_count: BigInt(30) },
+      {
+        sequence: ['signup', 'onboarding', 'dashboard'],
+        user_count: BigInt(10),
+      },
+    ]);
+
+    const result = await service.getUserJourneys(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+      3,
+      2,
+      20,
+    );
+
+    expect(result.sequences).toHaveLength(3);
+    expect(result.sequences[0]).toEqual({
+      sequence: ['login', 'dashboard', 'search'],
+      userCount: 50,
+      lowVolume: false,
+    });
+    expect(result.sequences[1]).toEqual({
+      sequence: ['login', 'dashboard', 'settings'],
+      userCount: 30,
+      lowVolume: false,
+    });
+    expect(result.totalUsers).toBe(100);
+  });
+
+  it('labels low-volume sequences correctly', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([{ count: BigInt(100) }]);
+    prisma.$queryRawUnsafe.mockResolvedValue([
+      { sequence: ['login', 'dashboard', 'search'], user_count: BigInt(50) },
+      { sequence: ['login', 'settings', 'logout'], user_count: BigInt(4) },
+    ]);
+
+    const result = await service.getUserJourneys(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+      3,
+      2,
+      20,
+    );
+
+    expect(result.sequences[0].lowVolume).toBe(false);
+    expect(result.sequences[1].lowVolume).toBe(true);
+  });
+
+  it('includes identity and session rule strings', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([{ count: BigInt(0) }]);
+
+    const result = await service.getUserJourneys(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+      3,
+      2,
+      20,
+    );
+
+    expect(result.identityRule).toContain('userId');
+    expect(result.identityRule).toContain('anonymousId');
+    expect(result.sessionRule).toContain('No session windowing');
   });
 });

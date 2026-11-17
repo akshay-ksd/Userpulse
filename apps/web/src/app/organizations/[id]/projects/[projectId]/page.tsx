@@ -2478,6 +2478,191 @@ function FunnelsSection({
   );
 }
 
+type UserJourneySequence = {
+  sequence: string[];
+  userCount: number;
+  lowVolume: boolean;
+};
+
+type UserJourneysData = {
+  sequences: UserJourneySequence[];
+  totalUsers: number;
+  startDate: string;
+  endDate: string;
+  maxSteps: number;
+  minUsers: number;
+  identityRule: string;
+  sessionRule: string;
+};
+
+function UserJourneysSection({
+  orgId,
+  projectId,
+  startDate,
+  endDate,
+}: {
+  orgId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const [data, setData] = useState<UserJourneysData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [maxSteps, setMaxSteps] = useState(3);
+  const [showRules, setShowRules] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/analytics/user-journeys?startDate=${startDate}&endDate=${endDate}&maxSteps=${maxSteps}`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setData(await res.json());
+        } else {
+          setError('Failed to load user journeys.');
+        }
+      } catch {
+        if (!cancelled) setError('Network error loading user journeys.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId, startDate, endDate, maxSteps]);
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Common user journeys</h2>
+        <button
+          onClick={() => setShowRules(!showRules)}
+          className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          aria-label="Show identity and session rules"
+        >
+          ?
+        </button>
+      </div>
+
+      {showRules && data && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950">
+          <p className="text-sm text-blue-700 dark:text-blue-300">
+            <strong>Identity rule:</strong> {data.identityRule}
+          </p>
+          <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+            <strong>Session rule:</strong> {data.sessionRule}
+          </p>
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <label className="text-sm text-zinc-500 dark:text-zinc-400">Sequence length:</label>
+        <select
+          value={maxSteps}
+          onChange={(e) => setMaxSteps(Number(e.target.value))}
+          className="rounded-lg border border-black/[.15] bg-transparent px-2 py-1 text-sm text-black focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white/[.2] dark:text-zinc-50 dark:focus:ring-white/20"
+        >
+          {[2, 3, 4, 5].map((n) => (
+            <option key={n} value={n}>
+              {n} steps
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {loading && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading user journeys…</p>
+      )}
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {!loading && !error && data && (
+        <div className="flex flex-col gap-4">
+          {data.sequences.length === 0 ? (
+            <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                No common event sequences found for this period. This may indicate insufficient data
+                or no users with {maxSteps}+ events.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {formatDateRange(data.startDate, data.endDate)} &middot;{' '}
+                  {data.totalUsers.toLocaleString()} total users &middot; {data.sequences.length}{' '}
+                  sequence{data.sequences.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-black/[.08] dark:border-white/[.08]">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-black/[.08] dark:border-white/[.08]">
+                      <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">
+                        #
+                      </th>
+                      <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">
+                        Journey
+                      </th>
+                      <th className="px-4 py-2 text-right font-medium text-zinc-500 dark:text-zinc-400">
+                        Users
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.sequences.map((seq, i) => (
+                      <tr
+                        key={i}
+                        className="border-b border-black/[.04] last:border-0 dark:border-white/[.04]"
+                      >
+                        <td className="px-4 py-2.5 text-zinc-400 dark:text-zinc-500">{i + 1}</td>
+                        <td className="px-4 py-2.5">
+                          <div className="flex flex-wrap items-center gap-1">
+                            {seq.sequence.map((step, j) => (
+                              <span key={j} className="flex items-center gap-1">
+                                <span className="inline-block rounded bg-zinc-100 px-2 py-0.5 text-xs font-medium text-black dark:bg-zinc-800 dark:text-zinc-50">
+                                  {step}
+                                </span>
+                                {j < seq.sequence.length - 1 && (
+                                  <span className="text-zinc-300 dark:text-zinc-600">→</span>
+                                )}
+                              </span>
+                            ))}
+                            {seq.lowVolume && (
+                              <span className="ml-1 inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+                                low volume
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-4 py-2.5 text-right text-black dark:text-zinc-50">
+                          {seq.userCount.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FunnelForm({
   eventNames,
   initialName = '',
@@ -2891,6 +3076,15 @@ function ProjectDetail() {
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
       <FunnelsSection
+        orgId={orgId}
+        projectId={project.id}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <UserJourneysSection
         orgId={orgId}
         projectId={project.id}
         startDate={dateRange.startDate}

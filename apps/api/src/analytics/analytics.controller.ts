@@ -10,8 +10,10 @@ import type { AuthUser } from '../auth/auth-user.js';
 import {
   eventActivityQuerySchema,
   featureUsageTrendsQuerySchema,
+  userJourneysQuerySchema,
   type EventActivityQueryDto,
   type FeatureUsageTrendsQueryDto,
+  type UserJourneysQueryDto,
 } from './event-activity-query.dto.js';
 import {
   AnalyticsService,
@@ -20,6 +22,7 @@ import {
   type FeatureAdoptionResult,
   type FeatureUsageComparisonResult,
   type FeatureUsageTrendsResult,
+  type UserJourneysResult,
 } from './analytics.service.js';
 
 @Controller('organizations/:orgId/projects/:projectId/analytics')
@@ -144,6 +147,33 @@ export class AnalyticsController {
       featureId,
       startDate,
       endDate,
+    );
+  }
+
+  @Get('user-journeys')
+  async getUserJourneys(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+    @Query() query: Record<string, string>,
+  ): Promise<UserJourneysResult> {
+    const parsed = userJourneysQuerySchema.safeParse(query);
+    if (!parsed.success) {
+      throw new BadRequestException(
+        parsed.error.issues.map((i) => i.message).join('; '),
+      );
+    }
+
+    const { startDate, endDate, maxSteps, minUsers, limit } = parsed.data;
+    return this.analyticsService.getUserJourneys(
+      orgId,
+      projectId,
+      user.id,
+      startDate,
+      endDate,
+      maxSteps,
+      minUsers,
+      limit,
     );
   }
 }

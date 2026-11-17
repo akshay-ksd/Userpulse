@@ -28,6 +28,12 @@ const ACTIVE_USER_DEFINITION =
 const FEATURE_USAGE_COMPARISON_METRIC =
   'Total valid events per feature during the selected period. Features are ranked by event count descending.';
 
+const USER_JOURNEY_IDENTITY_RULE =
+  'A user is identified by userId when available, otherwise anonymousId (COALESCE). Each unique identity is counted once per sequence.';
+
+const USER_JOURNEY_SESSION_RULE =
+  'No session windowing is applied. Events are ordered by timestamp across the full date range per user identity.';
+
 const FEATURE_ADOPTION_DEFINITION =
   'Feature adoption rate is the percentage of active users who used the feature during the selected period. An active user is a distinct identified (userId) or anonymous (anonymousId) reference with at least one valid event.';
 
@@ -67,6 +73,23 @@ export interface FeatureUsageComparisonResult {
   startDate: string;
   endDate: string;
   metric: string;
+}
+
+export interface UserJourneySequence {
+  sequence: string[];
+  userCount: number;
+  lowVolume: boolean;
+}
+
+export interface UserJourneysResult {
+  sequences: UserJourneySequence[];
+  totalUsers: number;
+  startDate: string;
+  endDate: string;
+  maxSteps: number;
+  minUsers: number;
+  identityRule: string;
+  sessionRule: string;
 }
 
 @Injectable()
@@ -478,6 +501,125 @@ export class AnalyticsService {
       startDate,
       endDate,
       metric: FEATURE_USAGE_COMPARISON_METRIC,
+    };
+  }
+
+  async getUserJourneys(
+    orgId: string,
+    projectId: string,
+    userId: string,
+    startDate: string,
+    endDate: string,
+    maxSteps: number,
+    minUsers: number,
+    limit: number,
+  ): Promise<UserJourneysResult> {
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: {
+        organizationId_userId: { organizationId: orgId, userId },
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException();
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, organizationId: orgId },
+    });
+
+    if (!project) {
+      throw new NotFoundException();
+    }
+
+    const startDateTime = new Date(`${startDate}T00:00:00.000Z`);
+    const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
+
+    const totalRows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
+      SELECT COUNT(DISTINCT COALESCE("user_id", "anonymous_id"))::bigint AS count
+      FROM events
+      WHERE "project_id" = ${projectId}
+        AND "validation_status" = 'VALID'
+        AND "event_timestamp" >= ${startDateTime}
+        AND "event_timestamp" <= ${endDateTime}
+        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+    `;
+
+    const totalUsers = Number(totalRows[0]?.count ?? 0);
+
+    if (totalUsers === 0) {
+      return {
+        sequences: [],
+        totalUsers: 0,
+        startDate,
+        endDate,
+        maxSteps,
+        minUsers,
+        identityRule: USER_JOURNEY_IDENTITY_RULE,
+        sessionRule: USER_JOURNEY_SESSION_RULE,
+      };
+    }
+
+    const sequenceRows = await this.prisma.$queryRawUnsafe<
+      Array<{ sequence: string[]; user_count: bigint }>
+    >(
+      `
+      WITH user_events AS (
+        SELECT
+          COALESCE("user_id", "anonymous_id") AS uid,
+          "event_name",
+          ROW_NUMBER() OVER (
+            PARTITION BY COALESCE("user_id", "anonymous_id")
+            ORDER BY "event_timestamp", "ingested_at"
+          ) AS rn
+        FROM events
+        WHERE "project_id" = $1
+          AND "validation_status" = 'VALID'
+          AND "event_timestamp" >= $2
+          AND "event_timestamp" <= $3
+          AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+      ),
+      sequences AS (
+        SELECT
+          e1.uid,
+          ARRAY[${Array.from({ length: maxSteps }, (_, i) => `e${i + 1}."event_name"`).join(', ')}] AS seq
+        FROM user_events e1
+        ${Array.from({ length: maxSteps - 1 }, (_, i) => {
+          const idx = i + 2;
+          return `INNER JOIN user_events e${idx} ON e1.uid = e${idx}.uid AND e${idx}.rn = e1.rn + ${i + 1}`;
+        }).join('\n        ')}
+      )
+      SELECT seq AS sequence, COUNT(DISTINCT uid)::bigint AS user_count
+      FROM sequences
+      GROUP BY seq
+      HAVING COUNT(DISTINCT uid) >= $4
+      ORDER BY user_count DESC
+      LIMIT $5
+      `,
+      projectId,
+      startDateTime,
+      endDateTime,
+      minUsers,
+      limit,
+    );
+
+    const lowVolumeThreshold = Math.ceil(totalUsers * 0.05);
+
+    const sequences: UserJourneySequence[] = sequenceRows.map((row) => ({
+      sequence: row.sequence,
+      userCount: Number(row.user_count),
+      lowVolume: Number(row.user_count) < lowVolumeThreshold,
+    }));
+
+    return {
+      sequences,
+      totalUsers,
+      startDate,
+      endDate,
+      maxSteps,
+      minUsers,
+      identityRule: USER_JOURNEY_IDENTITY_RULE,
+      sessionRule: USER_JOURNEY_SESSION_RULE,
     };
   }
 }

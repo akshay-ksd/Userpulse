@@ -383,6 +383,106 @@ function getDateRange(preset: PeriodPreset): { startDate: string; endDate: strin
   };
 }
 
+function getActivePreset(startDate: string, endDate: string): PeriodPreset | null {
+  for (const p of ['7d', '30d', '90d'] as PeriodPreset[]) {
+    const range = getDateRange(p);
+    if (range.startDate === startDate && range.endDate === endDate) return p;
+  }
+  return null;
+}
+
+function validateDateRange(startDate: string, endDate: string): string | null {
+  if (!startDate || !endDate) return 'Both dates are required.';
+  if (endDate < startDate) return 'End date must not be before start date.';
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffDays = (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24);
+  if (diffDays > 365) return 'Date range must not exceed 365 days.';
+  return null;
+}
+
+function DateRangeControl({
+  startDate,
+  endDate,
+  onChange,
+}: {
+  startDate: string;
+  endDate: string;
+  onChange: (startDate: string, endDate: string) => void;
+}) {
+  const [localStart, setLocalStart] = useState(startDate);
+  const [localEnd, setLocalEnd] = useState(endDate);
+  const [error, setError] = useState('');
+  const activePreset = getActivePreset(localStart, localEnd);
+
+  function handlePreset(preset: PeriodPreset) {
+    const range = getDateRange(preset);
+    setLocalStart(range.startDate);
+    setLocalEnd(range.endDate);
+    setError('');
+    onChange(range.startDate, range.endDate);
+  }
+
+  function handleCustomChange(newStart: string, newEnd: string) {
+    setLocalStart(newStart);
+    setLocalEnd(newEnd);
+    const validationError = validateDateRange(newStart, newEnd);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
+    setError('');
+    onChange(newStart, newEnd);
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Date range</h2>
+        <div className="flex gap-1">
+          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
+            <button
+              key={p}
+              onClick={() => handlePreset(p)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                activePreset === p
+                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex items-center gap-3">
+        <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+          From
+          <input
+            type="date"
+            value={localStart}
+            onChange={(e) => handleCustomChange(e.target.value, localEnd)}
+            className="rounded-lg border border-black/[.15] bg-transparent px-3 py-1.5 text-sm text-black focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white/[.2] dark:text-zinc-50 dark:focus:ring-white/20"
+          />
+        </label>
+        <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-400">
+          To
+          <input
+            type="date"
+            value={localEnd}
+            onChange={(e) => handleCustomChange(localStart, e.target.value)}
+            className="rounded-lg border border-black/[.15] bg-transparent px-3 py-1.5 text-sm text-black focus:outline-none focus:ring-2 focus:ring-black/20 dark:border-white/[.2] dark:text-zinc-50 dark:focus:ring-white/20"
+          />
+        </label>
+      </div>
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      <p className="text-xs text-zinc-500 dark:text-zinc-400">
+        {formatDateRange(startDate, endDate)}
+      </p>
+    </div>
+  );
+}
+
 function formatDateRange(startDate: string, endDate: string): string {
   const start = new Date(startDate + 'T00:00:00Z');
   const end = new Date(endDate + 'T00:00:00Z');
@@ -402,16 +502,23 @@ type EventActivityData = {
   endDate: string;
 };
 
-function EventActivitySection({ orgId, projectId }: { orgId: string; projectId: string }) {
-  const [period, setPeriod] = useState<PeriodPreset>('7d');
+function EventActivitySection({
+  orgId,
+  projectId,
+  startDate,
+  endDate,
+}: {
+  orgId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}) {
   const [data, setData] = useState<EventActivityData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
   useEffect(() => {
     let cancelled = false;
-
-    const { startDate, endDate } = getDateRange(period);
 
     async function load() {
       setLoading(true);
@@ -438,30 +545,13 @@ function EventActivitySection({ orgId, projectId }: { orgId: string; projectId: 
     return () => {
       cancelled = true;
     };
-  }, [orgId, projectId, period]);
+  }, [orgId, projectId, startDate, endDate]);
 
   const maxCount = data ? Math.max(...data.daily.map((d) => d.count), 1) : 1;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Event activity</h2>
-        <div className="flex gap-1">
-          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                period === p
-                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
-                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
-            </button>
-          ))}
-        </div>
-      </div>
+      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Event activity</h2>
 
       {loading && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading event activity…</p>
@@ -526,8 +616,17 @@ type ActiveUsersData = {
   definition: string;
 };
 
-function ActiveUsersSection({ orgId, projectId }: { orgId: string; projectId: string }) {
-  const [period, setPeriod] = useState<PeriodPreset>('7d');
+function ActiveUsersSection({
+  orgId,
+  projectId,
+  startDate,
+  endDate,
+}: {
+  orgId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}) {
   const [data, setData] = useState<ActiveUsersData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -535,8 +634,6 @@ function ActiveUsersSection({ orgId, projectId }: { orgId: string; projectId: st
 
   useEffect(() => {
     let cancelled = false;
-
-    const { startDate, endDate } = getDateRange(period);
 
     async function load() {
       setLoading(true);
@@ -563,38 +660,21 @@ function ActiveUsersSection({ orgId, projectId }: { orgId: string; projectId: st
     return () => {
       cancelled = true;
     };
-  }, [orgId, projectId, period]);
+  }, [orgId, projectId, startDate, endDate]);
 
   const maxCount = data ? Math.max(...data.daily.map((d) => d.count), 1) : 1;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-medium text-black dark:text-zinc-50">Active users</h2>
-          <button
-            onClick={() => setShowDefinition(!showDefinition)}
-            className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-            aria-label="Show active user definition"
-          >
-            ?
-          </button>
-        </div>
-        <div className="flex gap-1">
-          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                period === p
-                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
-                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Active users</h2>
+        <button
+          onClick={() => setShowDefinition(!showDefinition)}
+          className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          aria-label="Show active user definition"
+        >
+          ?
+        </button>
       </div>
 
       {showDefinition && data?.definition && (
@@ -670,8 +750,17 @@ type FeatureAdoptionData = {
   definition: string;
 };
 
-function FeatureAdoptionSection({ orgId, projectId }: { orgId: string; projectId: string }) {
-  const [period, setPeriod] = useState<PeriodPreset>('7d');
+function FeatureAdoptionSection({
+  orgId,
+  projectId,
+  startDate,
+  endDate,
+}: {
+  orgId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}) {
   const [data, setData] = useState<FeatureAdoptionData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -679,8 +768,6 @@ function FeatureAdoptionSection({ orgId, projectId }: { orgId: string; projectId
 
   useEffect(() => {
     let cancelled = false;
-
-    const { startDate, endDate } = getDateRange(period);
 
     async function load() {
       setLoading(true);
@@ -707,36 +794,19 @@ function FeatureAdoptionSection({ orgId, projectId }: { orgId: string; projectId
     return () => {
       cancelled = true;
     };
-  }, [orgId, projectId, period]);
+  }, [orgId, projectId, startDate, endDate]);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-medium text-black dark:text-zinc-50">Feature adoption</h2>
-          <button
-            onClick={() => setShowDefinition(!showDefinition)}
-            className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-            aria-label="Show feature adoption definition"
-          >
-            ?
-          </button>
-        </div>
-        <div className="flex gap-1">
-          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                period === p
-                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
-                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Feature adoption</h2>
+        <button
+          onClick={() => setShowDefinition(!showDefinition)}
+          className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          aria-label="Show feature adoption definition"
+        >
+          ?
+        </button>
       </div>
 
       {showDefinition && data?.definition && (
@@ -829,8 +899,17 @@ type FeatureUsageTrendsData = {
 
 type FeatureSummary = { id: string; name: string; status: string };
 
-function FeatureUsageTrendsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
-  const [period, setPeriod] = useState<PeriodPreset>('7d');
+function FeatureUsageTrendsSection({
+  orgId,
+  projectId,
+  startDate,
+  endDate,
+}: {
+  orgId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}) {
   const [features, setFeatures] = useState<FeatureSummary[]>([]);
   const [featuresLoading, setFeaturesLoading] = useState(true);
   const [selectedFeatureId, setSelectedFeatureId] = useState<string>('');
@@ -873,7 +952,6 @@ function FeatureUsageTrendsSection({ orgId, projectId }: { orgId: string; projec
     if (!selectedFeatureId) return;
 
     let cancelled = false;
-    const { startDate, endDate } = getDateRange(period);
 
     async function load() {
       setLoading(true);
@@ -900,30 +978,13 @@ function FeatureUsageTrendsSection({ orgId, projectId }: { orgId: string; projec
     return () => {
       cancelled = true;
     };
-  }, [orgId, projectId, period, selectedFeatureId]);
+  }, [orgId, projectId, startDate, endDate, selectedFeatureId]);
 
   const maxCount = data ? Math.max(...data.daily.map((d) => d.count), 1) : 1;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Feature usage trends</h2>
-        <div className="flex gap-1">
-          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                period === p
-                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
-                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
-            </button>
-          ))}
-        </div>
-      </div>
+      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Feature usage trends</h2>
 
       {featuresLoading ? (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading features…</p>
@@ -1019,8 +1080,17 @@ type FeatureUsageComparisonData = {
   metric: string;
 };
 
-function FeatureUsageComparisonSection({ orgId, projectId }: { orgId: string; projectId: string }) {
-  const [period, setPeriod] = useState<PeriodPreset>('7d');
+function FeatureUsageComparisonSection({
+  orgId,
+  projectId,
+  startDate,
+  endDate,
+}: {
+  orgId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}) {
   const [data, setData] = useState<FeatureUsageComparisonData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -1028,8 +1098,6 @@ function FeatureUsageComparisonSection({ orgId, projectId }: { orgId: string; pr
 
   useEffect(() => {
     let cancelled = false;
-
-    const { startDate, endDate } = getDateRange(period);
 
     async function load() {
       setLoading(true);
@@ -1056,40 +1124,23 @@ function FeatureUsageComparisonSection({ orgId, projectId }: { orgId: string; pr
     return () => {
       cancelled = true;
     };
-  }, [orgId, projectId, period]);
+  }, [orgId, projectId, startDate, endDate]);
 
   const maxEvents = data ? Math.max(...data.features.map((f) => f.totalEvents), 1) : 1;
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <h2 className="text-lg font-medium text-black dark:text-zinc-50">
-            Feature usage comparison
-          </h2>
-          <button
-            onClick={() => setShowMetric(!showMetric)}
-            className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
-            aria-label="Show metric definition"
-          >
-            ?
-          </button>
-        </div>
-        <div className="flex gap-1">
-          {(['7d', '30d', '90d'] as PeriodPreset[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => setPeriod(p)}
-              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                period === p
-                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
-                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
-              }`}
-            >
-              {p === '7d' ? 'Last 7 days' : p === '30d' ? 'Last 30 days' : 'Last 90 days'}
-            </button>
-          ))}
-        </div>
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">
+          Feature usage comparison
+        </h2>
+        <button
+          onClick={() => setShowMetric(!showMetric)}
+          className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          aria-label="Show metric definition"
+        >
+          ?
+        </button>
       </div>
 
       {showMetric && data?.metric && (
@@ -2007,6 +2058,7 @@ function ProjectDetail() {
   const [archiving, setArchiving] = useState(false);
   const [projectFeatures, setProjectFeatures] = useState<FeatureInfo[]>([]);
   const [unmappedKey, setUnmappedKey] = useState(0);
+  const [dateRange, setDateRange] = useState(() => getDateRange('7d'));
 
   useEffect(() => {
     let cancelled = false;
@@ -2205,23 +2257,56 @@ function ProjectDetail() {
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <EventActivitySection orgId={orgId} projectId={project.id} />
+      <DateRangeControl
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+        onChange={(startDate, endDate) => setDateRange({ startDate, endDate })}
+      />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <ActiveUsersSection orgId={orgId} projectId={project.id} />
+      <EventActivitySection
+        orgId={orgId}
+        projectId={project.id}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <FeatureAdoptionSection orgId={orgId} projectId={project.id} />
+      <ActiveUsersSection
+        orgId={orgId}
+        projectId={project.id}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <FeatureUsageTrendsSection orgId={orgId} projectId={project.id} />
+      <FeatureAdoptionSection
+        orgId={orgId}
+        projectId={project.id}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
-      <FeatureUsageComparisonSection orgId={orgId} projectId={project.id} />
+      <FeatureUsageTrendsSection
+        orgId={orgId}
+        projectId={project.id}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <FeatureUsageComparisonSection
+        orgId={orgId}
+        projectId={project.id}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

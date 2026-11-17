@@ -3266,6 +3266,10 @@ type RecommendationData = {
   affectedFeatureId: string | null;
   affectedArea: string | null;
   evidence: Record<string, unknown> | null;
+  confidence: number | null;
+  impact: number | null;
+  reach: number | null;
+  priorityScore: number | null;
   periodStart: string;
   periodEnd: string;
   status: string;
@@ -3462,6 +3466,56 @@ function EvidenceDisplay({
   );
 }
 
+function scoreColor(score: number): string {
+  if (score > 0.6) return 'text-green-700 dark:text-green-400';
+  if (score >= 0.3) return 'text-amber-700 dark:text-amber-400';
+  return 'text-zinc-500 dark:text-zinc-400';
+}
+
+function scoreBg(score: number): string {
+  if (score > 0.6) return 'bg-green-100 dark:bg-green-900/30';
+  if (score >= 0.3) return 'bg-amber-100 dark:bg-amber-900/30';
+  return 'bg-zinc-100 dark:bg-zinc-800';
+}
+
+function PriorityScoreDisplay({ rec }: { rec: RecommendationData }) {
+  const [showDetail, setShowDetail] = useState(false);
+
+  if (rec.priorityScore == null) {
+    return (
+      <span className="text-xs text-zinc-400 dark:text-zinc-500 italic">Score unavailable</span>
+    );
+  }
+
+  return (
+    <div className="inline-flex flex-col">
+      <button
+        type="button"
+        onClick={() => setShowDetail(!showDetail)}
+        className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 text-xs font-medium ${scoreBg(rec.priorityScore)} ${scoreColor(rec.priorityScore)}`}
+        title="Priority Score = Reach × Impact × Confidence. This is a relative ranking aid, not a guarantee of outcomes."
+      >
+        Priority: {rec.priorityScore.toFixed(2)}
+        <span className="text-[10px] opacity-60">{showDetail ? '▲' : '▼'}</span>
+      </button>
+      {showDetail && (
+        <div className="mt-1 flex gap-3 text-[11px] text-zinc-500 dark:text-zinc-400">
+          <span>
+            Reach: <strong className={scoreColor(rec.reach!)}>{rec.reach!.toFixed(2)}</strong>
+          </span>
+          <span>
+            Impact: <strong className={scoreColor(rec.impact!)}>{rec.impact!.toFixed(2)}</strong>
+          </span>
+          <span>
+            Confidence:{' '}
+            <strong className={scoreColor(rec.confidence!)}>{rec.confidence!.toFixed(2)}</strong>
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
   const [recommendations, setRecommendations] = useState<RecommendationData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3515,6 +3569,10 @@ function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId
 
       {!loading && !error && recommendations.length > 0 && (
         <div className="space-y-3">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 italic">
+            Recommendations are ranked by a relative priority score (Reach × Impact × Confidence).
+            Scores are ranking aids, not guarantees.
+          </p>
           {recommendations.map((rec) => (
             <div
               key={rec.id}
@@ -3522,12 +3580,13 @@ function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId
             >
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1">
-                  <div className="mb-1 flex items-center gap-2">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
                     <span
                       className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${categoryColors[rec.category] ?? categoryColors.general}`}
                     >
                       {rec.category}
                     </span>
+                    <PriorityScoreDisplay rec={rec} />
                     {rec.affectedArea && (
                       <span className="text-xs text-zinc-500 dark:text-zinc-400">
                         {rec.affectedArea}

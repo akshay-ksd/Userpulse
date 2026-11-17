@@ -13,6 +13,10 @@ export interface RecommendationInfo {
   affectedFeatureId: string | null;
   affectedArea: string | null;
   evidence: unknown;
+  confidence: number | null;
+  impact: number | null;
+  reach: number | null;
+  priorityScore: number | null;
   periodStart: Date;
   periodEnd: Date;
   status: string;
@@ -56,7 +60,10 @@ export class RecommendationsService {
 
     return this.prisma.recommendation.findMany({
       where: { projectId, status: 'PUBLISHED' },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [
+        { priorityScore: { sort: 'desc', nulls: 'last' } },
+        { createdAt: 'desc' },
+      ],
     });
   }
 

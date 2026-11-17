@@ -6,7 +6,7 @@ import type {
   FeatureUsageEvidence,
 } from './evidence-gatherer.service.js';
 
-export interface GeneratedRecommendation {
+interface BaseRecommendation {
   title: string;
   summary: string;
   suggestedAction: string;
@@ -14,6 +14,13 @@ export interface GeneratedRecommendation {
   affectedFeatureId: string | null;
   affectedArea: string | null;
   evidence: Record<string, unknown>;
+}
+
+export interface GeneratedRecommendation extends BaseRecommendation {
+  confidence: number;
+  impact: number;
+  reach: number;
+  priorityScore: number;
 }
 
 const VALID_CATEGORIES = [
@@ -34,15 +41,20 @@ export class RecommendationGeneratorService {
     const recommendations =
       this.generateRuleBasedRecommendations(evidencePackage);
 
-    return recommendations.filter((r) =>
+    const scored = recommendations.map((r) => ({
+      ...r,
+      ...this.computeScores(r, evidencePackage),
+    }));
+
+    return scored.filter((r) =>
       this.validateRecommendation(r, evidencePackage),
     );
   }
 
   private generateRuleBasedRecommendations(
     evidence: EvidencePackage,
-  ): GeneratedRecommendation[] {
-    const recommendations: GeneratedRecommendation[] = [];
+  ): BaseRecommendation[] {
+    const recommendations: BaseRecommendation[] = [];
 
     this.detectLowAdoption(evidence, recommendations);
     this.detectSignificantActivityChanges(evidence, recommendations);
@@ -55,7 +67,7 @@ export class RecommendationGeneratorService {
 
   private detectLowAdoption(
     evidence: EvidencePackage,
-    recommendations: GeneratedRecommendation[],
+    recommendations: BaseRecommendation[],
   ): void {
     if (evidence.activeUsers === 0) return;
 
@@ -76,7 +88,7 @@ export class RecommendationGeneratorService {
 
   private detectSignificantActivityChanges(
     evidence: EvidencePackage,
-    recommendations: GeneratedRecommendation[],
+    recommendations: BaseRecommendation[],
   ): void {
     const significantChanges = evidence.activityChanges.filter(
       (c) => c.significant,
@@ -113,7 +125,7 @@ export class RecommendationGeneratorService {
 
   private detectHighUsageFeatures(
     evidence: EvidencePackage,
-    recommendations: GeneratedRecommendation[],
+    recommendations: BaseRecommendation[],
   ): void {
     const highUsage = evidence.featureUsage.filter(
       (f) => f.classification === 'high',
@@ -134,7 +146,7 @@ export class RecommendationGeneratorService {
 
   private detectLowUsageFeatures(
     evidence: EvidencePackage,
-    recommendations: GeneratedRecommendation[],
+    recommendations: BaseRecommendation[],
   ): void {
     const lowUsage = evidence.featureUsage.filter(
       (f) => f.classification === 'low' && f.totalEvents > 0,
@@ -160,7 +172,7 @@ export class RecommendationGeneratorService {
 
   private detectOverallTrends(
     evidence: EvidencePackage,
-    recommendations: GeneratedRecommendation[],
+    recommendations: BaseRecommendation[],
   ): void {
     if (evidence.features.length > 0 && evidence.featureAdoption.length > 0) {
       const avgAdoption =
@@ -187,6 +199,91 @@ export class RecommendationGeneratorService {
     }
   }
 
+  private computeScores(
+    rec: BaseRecommendation,
+    evidence: EvidencePackage,
+  ): {
+    confidence: number;
+    impact: number;
+    reach: number;
+    priorityScore: number;
+  } {
+    const evidenceType = rec.evidence?.type as string | undefined;
+    let confidence = 0.3;
+    let impact = 0.5;
+    let reach = 1.0;
+
+    if (evidenceType === 'feature_adoption') {
+      const featureUsers = (rec.evidence.featureUsers as number) ?? 0;
+      const totalUsers = (rec.evidence.totalUsers as number) ?? 0;
+      const adoptionRate = (rec.evidence.adoptionRate as number) ?? 0;
+
+      confidence =
+        Math.min(1, featureUsers / 20) * 0.5 +
+        (totalUsers >= 10 ? 0.5 : totalUsers / 20);
+      confidence = Math.max(0, Math.min(1, confidence));
+
+      impact = 1 - adoptionRate / 100;
+      impact = Math.max(0, Math.min(1, impact));
+
+      reach = totalUsers > 0 ? Math.min(1, featureUsers / totalUsers) : 0;
+    } else if (evidenceType === 'activity_change') {
+      const currentCount = (rec.evidence.currentCount as number) ?? 0;
+      const baselineCount = (rec.evidence.baselineCount as number) ?? 0;
+      const percentChange = (rec.evidence.percentChange as number) ?? 0;
+      const direction = rec.evidence.direction as string;
+
+      confidence =
+        Math.min(1, Math.abs(currentCount - baselineCount) / 100) * 0.6 +
+        (Math.abs(percentChange) >= 50 ? 0.4 : Math.abs(percentChange) / 125);
+      confidence = Math.max(0, Math.min(1, confidence));
+
+      if (direction === 'decrease') {
+        impact = Math.min(1, Math.abs(percentChange) / 100);
+      } else {
+        impact = Math.min(1, percentChange / 200);
+      }
+      impact = Math.max(0, Math.min(1, impact));
+
+      reach =
+        evidence.activeUsers > 0
+          ? Math.min(
+              1,
+              evidence.activeUsers / Math.max(evidence.activeUsers, 1),
+            )
+          : 0;
+    } else if (evidenceType === 'feature_usage') {
+      const totalEvents = (rec.evidence.totalEvents as number) ?? 0;
+      const classification = rec.evidence.classification as string;
+
+      confidence = Math.min(1, totalEvents / 100);
+      confidence = Math.max(0, Math.min(1, confidence));
+
+      impact = classification === 'low' ? 0.7 : 0.4;
+
+      const featureId = rec.evidence.featureId as string | undefined;
+      const adoption = featureId
+        ? evidence.featureAdoption.find((fa) => fa.featureId === featureId)
+        : undefined;
+      reach =
+        adoption && evidence.activeUsers > 0
+          ? Math.min(1, adoption.featureUsers / evidence.activeUsers)
+          : 1.0;
+    } else {
+      confidence = 0.3;
+      impact = 0.5;
+      reach = evidence.activeUsers > 0 ? 1.0 : 0;
+    }
+
+    confidence = Math.round(confidence * 100) / 100;
+    impact = Math.round(impact * 100) / 100;
+    reach = Math.round(reach * 100) / 100;
+    const priorityScore =
+      Math.round(reach * impact * confidence * 10000) / 10000;
+
+    return { confidence, impact, reach, priorityScore };
+  }
+
   private validateRecommendation(
     rec: GeneratedRecommendation,
     evidence: EvidencePackage,
@@ -205,6 +302,13 @@ export class RecommendationGeneratorService {
 
     if (!rec.evidence || typeof rec.evidence !== 'object') {
       this.logger.warn(`Recommendation rejected: missing evidence`);
+      return false;
+    }
+
+    if (rec.confidence < 0.2) {
+      this.logger.warn(
+        `Recommendation rejected: weak evidence (confidence ${rec.confidence})`,
+      );
       return false;
     }
 

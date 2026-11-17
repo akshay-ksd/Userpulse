@@ -179,4 +179,129 @@ describe('RecommendationGeneratorService', () => {
     expect(overall).toBeDefined();
     expect(overall!.category).toBe('adoption');
   });
+
+  describe('scoring', () => {
+    it('computes scores for feature_adoption evidence', async () => {
+      const evidence = makeEvidence();
+      const recs = await service.generateRecommendations(evidence);
+      const lowAdoption = recs.find((r) => r.title.includes('Low adoption'));
+      expect(lowAdoption).toBeDefined();
+      expect(lowAdoption!.confidence).toBeGreaterThan(0);
+      expect(lowAdoption!.confidence).toBeLessThanOrEqual(1);
+      expect(lowAdoption!.impact).toBeGreaterThan(0);
+      expect(lowAdoption!.impact).toBeLessThanOrEqual(1);
+      expect(lowAdoption!.reach).toBeGreaterThanOrEqual(0);
+      expect(lowAdoption!.reach).toBeLessThanOrEqual(1);
+      expect(lowAdoption!.priorityScore).toBeCloseTo(
+        lowAdoption!.reach * lowAdoption!.impact * lowAdoption!.confidence,
+        3,
+      );
+    });
+
+    it('computes scores for activity_change evidence', async () => {
+      const evidence = makeEvidence();
+      const recs = await service.generateRecommendations(evidence);
+      const declining = recs.find((r) =>
+        r.title.includes('Declining activity'),
+      );
+      expect(declining).toBeDefined();
+      expect(declining!.confidence).toBeGreaterThan(0);
+      expect(declining!.impact).toBeGreaterThan(0);
+      expect(declining!.priorityScore).toBeCloseTo(
+        declining!.reach * declining!.impact * declining!.confidence,
+        3,
+      );
+    });
+
+    it('computes scores for feature_usage evidence', async () => {
+      const evidence = makeEvidence();
+      const recs = await service.generateRecommendations(evidence);
+      const highUsage = recs.find((r) => r.title.includes('High engagement'));
+      expect(highUsage).toBeDefined();
+      expect(highUsage!.confidence).toBeGreaterThan(0);
+      expect(highUsage!.impact).toBe(0.4);
+      expect(highUsage!.priorityScore).toBeCloseTo(
+        highUsage!.reach * highUsage!.impact * highUsage!.confidence,
+        3,
+      );
+    });
+
+    it('computes generic scores for overall trend evidence', async () => {
+      const evidence = makeEvidence({
+        featureAdoption: [
+          {
+            featureId: 'feat-1',
+            featureName: 'A',
+            adoptionRate: 8,
+            featureUsers: 8,
+            totalUsers: 100,
+          },
+          {
+            featureId: 'feat-2',
+            featureName: 'B',
+            adoptionRate: 12,
+            featureUsers: 12,
+            totalUsers: 100,
+          },
+        ],
+        activityChanges: [],
+        featureUsage: [],
+        activeUsers: 100,
+      });
+      const recs = await service.generateRecommendations(evidence);
+      const overall = recs.find((r) =>
+        r.title.includes('Overall feature adoption'),
+      );
+      expect(overall).toBeDefined();
+      expect(overall!.confidence).toBe(0.3);
+      expect(overall!.impact).toBe(0.5);
+      expect(overall!.reach).toBe(1);
+    });
+
+    it('priorityScore equals reach * impact * confidence', async () => {
+      const evidence = makeEvidence();
+      const recs = await service.generateRecommendations(evidence);
+      for (const rec of recs) {
+        const expected =
+          Math.round(rec.reach * rec.impact * rec.confidence * 10000) / 10000;
+        expect(rec.priorityScore).toBe(expected);
+      }
+    });
+
+    it('rejects recommendations with confidence below 0.2', async () => {
+      const evidence = makeEvidence({
+        featureAdoption: [
+          {
+            featureId: 'feat-1',
+            featureName: 'Tiny',
+            adoptionRate: 5,
+            featureUsers: 1,
+            totalUsers: 2,
+          },
+        ],
+        activityChanges: [],
+        featureUsage: [],
+        activeUsers: 2,
+      });
+      const recs = await service.generateRecommendations(evidence);
+      for (const rec of recs) {
+        expect(rec.confidence).toBeGreaterThanOrEqual(0.2);
+      }
+    });
+
+    it('all scores are in [0, 1] range', async () => {
+      const evidence = makeEvidence();
+      const recs = await service.generateRecommendations(evidence);
+      for (const rec of recs) {
+        expect(rec.confidence).toBeGreaterThanOrEqual(0);
+        expect(rec.confidence).toBeLessThanOrEqual(1);
+        expect(rec.impact).toBeGreaterThanOrEqual(0);
+        expect(rec.impact).toBeLessThanOrEqual(1);
+        expect(rec.reach).toBeGreaterThanOrEqual(0);
+        expect(rec.reach).toBeLessThanOrEqual(1);
+        expect(rec.priorityScore).toBeGreaterThanOrEqual(0);
+        expect(rec.priorityScore).toBeLessThanOrEqual(1);
+      }
+    });
+  });
 });

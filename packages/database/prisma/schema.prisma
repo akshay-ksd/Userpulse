@@ -271,6 +271,10 @@ model Recommendation {
   affectedFeatureId String?
   affectedArea      String?
   evidence          Json
+  confidence        Float?
+  impact            Float?
+  reach             Float?
+  priorityScore     Float?
   periodStart       DateTime  @db.Timestamptz(6)
   periodEnd         DateTime  @db.Timestamptz(6)
   status            String    @default("PUBLISHED")
@@ -284,6 +288,7 @@ model Recommendation {
   @@index([projectId, status])
   @@index([analysisRunId])
   @@index([projectId, createdAt])
+  @@index([projectId, priorityScore(sort: Desc)])
   @@map("recommendations")
 }
 

@@ -51,7 +51,10 @@ describe('RecommendationsService', () => {
       expect(result).toEqual(recs);
       expect(prisma.recommendation.findMany).toHaveBeenCalledWith({
         where: { projectId, status: 'PUBLISHED' },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [
+          { priorityScore: { sort: 'desc', nulls: 'last' } },
+          { createdAt: 'desc' },
+        ],
       });
     });
 

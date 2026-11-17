@@ -2663,6 +2663,192 @@ function UserJourneysSection({
   );
 }
 
+type FeatureUsageInsightsData = {
+  insights: Array<{
+    featureId: string;
+    featureName: string;
+    totalEvents: number;
+    classification: 'high' | 'low' | 'normal';
+    insufficientData: boolean;
+  }>;
+  meanEvents: number;
+  highThreshold: number;
+  lowThreshold: number;
+  totalFeatures: number;
+  featuresWithData: number;
+  startDate: string;
+  endDate: string;
+  method: string;
+  insufficientData: boolean;
+  insufficientDataReason?: string;
+};
+
+function FeatureUsageInsightsSection({
+  orgId,
+  projectId,
+  startDate,
+  endDate,
+}: {
+  orgId: string;
+  projectId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const [data, setData] = useState<FeatureUsageInsightsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [showMethod, setShowMethod] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/analytics/feature-usage-insights?startDate=${startDate}&endDate=${endDate}`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          setData(await res.json());
+        } else {
+          setError('Failed to load feature usage insights.');
+        }
+      } catch {
+        if (!cancelled) setError('Network error loading feature usage insights.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId, startDate, endDate]);
+
+  function classificationBadge(
+    classification: 'high' | 'low' | 'normal',
+    insufficientData: boolean,
+  ) {
+    if (insufficientData) {
+      return (
+        <span className="inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400">
+          insufficient data
+        </span>
+      );
+    }
+    if (classification === 'high') {
+      return (
+        <span className="inline-block rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700 dark:bg-green-900 dark:text-green-300">
+          high usage
+        </span>
+      );
+    }
+    if (classification === 'low') {
+      return (
+        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700 dark:bg-amber-900 dark:text-amber-300">
+          low usage
+        </span>
+      );
+    }
+    return (
+      <span className="inline-block rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400">
+        normal
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-2">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Feature usage insights</h2>
+        <button
+          onClick={() => setShowMethod(!showMethod)}
+          className="rounded-full px-1.5 py-0.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 dark:text-zinc-500 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
+          aria-label="Show classification method"
+        >
+          ?
+        </button>
+      </div>
+
+      {showMethod && data?.method && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 dark:border-blue-800 dark:bg-blue-950">
+          <p className="text-sm text-blue-700 dark:text-blue-300">{data.method}</p>
+        </div>
+      )}
+
+      {loading && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading feature usage insights…</p>
+      )}
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {!loading && !error && data && (
+        <div className="flex flex-col gap-4">
+          {data.insufficientData ? (
+            <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                {data.insufficientDataReason ?? 'Insufficient data for feature usage insights.'}
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]">
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  {formatDateRange(data.startDate, data.endDate)} &middot; {data.totalFeatures}{' '}
+                  feature{data.totalFeatures !== 1 ? 's' : ''} &middot; Baseline:{' '}
+                  {data.meanEvents.toLocaleString()} avg events &middot; High: &gt;
+                  {data.highThreshold.toLocaleString()} &middot; Low: &lt;
+                  {data.lowThreshold.toLocaleString()}
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-black/[.08] dark:border-white/[.08]">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-black/[.08] dark:border-white/[.08]">
+                      <th className="px-4 py-2 text-left font-medium text-zinc-500 dark:text-zinc-400">
+                        Feature
+                      </th>
+                      <th className="px-4 py-2 text-right font-medium text-zinc-500 dark:text-zinc-400">
+                        Events
+                      </th>
+                      <th className="px-4 py-2 text-right font-medium text-zinc-500 dark:text-zinc-400">
+                        Classification
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.insights.map((insight) => (
+                      <tr
+                        key={insight.featureId}
+                        className="border-b border-black/[.04] last:border-0 dark:border-white/[.04]"
+                      >
+                        <td className="px-4 py-2.5 text-black dark:text-zinc-50">
+                          {insight.featureName}
+                        </td>
+                        <td className="px-4 py-2.5 text-right font-medium text-black dark:text-zinc-50">
+                          {insight.totalEvents.toLocaleString()}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          {classificationBadge(insight.classification, insight.insufficientData)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function FunnelForm({
   eventNames,
   initialName = '',
@@ -3085,6 +3271,15 @@ function ProjectDetail() {
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 
       <UserJourneysSection
+        orgId={orgId}
+        projectId={project.id}
+        startDate={dateRange.startDate}
+        endDate={dateRange.endDate}
+      />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <FeatureUsageInsightsSection
         orgId={orgId}
         projectId={project.id}
         startDate={dateRange.startDate}

@@ -989,3 +989,253 @@ describe('AnalyticsService — getUserJourneys', () => {
     expect(result.sessionRule).toContain('No session windowing');
   });
 });
+
+describe('AnalyticsService — getFeatureUsageInsights', () => {
+  let service: AnalyticsService;
+  let prisma: ReturnType<typeof makePrisma>;
+
+  beforeEach(() => {
+    prisma = makePrisma();
+    service = new AnalyticsService(prisma as any);
+  });
+
+  it('throws NotFoundException when user is not a member', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue(null);
+
+    await expect(
+      service.getFeatureUsageInsights(
+        'org1',
+        'proj1',
+        'user1',
+        '2026-11-01',
+        '2026-11-07',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('throws NotFoundException when project does not exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getFeatureUsageInsights(
+        'org1',
+        'proj1',
+        'user1',
+        '2026-11-01',
+        '2026-11-07',
+      ),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('classifies features as high, low, or normal', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([
+      { feature_id: 'f1', count: BigInt(500) },
+      { feature_id: 'f2', count: BigInt(100) },
+      { feature_id: 'f3', count: BigInt(10) },
+    ]);
+    prisma.feature.findMany.mockResolvedValue([
+      {
+        id: 'f1',
+        name: 'Feature A',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f2',
+        name: 'Feature B',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f3',
+        name: 'Feature C',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+    ]);
+
+    const result = await service.getFeatureUsageInsights(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+    );
+
+    expect(result.insufficientData).toBe(false);
+    expect(result.insights).toHaveLength(3);
+    expect(result.insights[0]).toMatchObject({
+      featureId: 'f1',
+      totalEvents: 500,
+      classification: 'high',
+    });
+    expect(result.insights[2]).toMatchObject({
+      featureId: 'f3',
+      totalEvents: 10,
+      classification: 'low',
+    });
+    expect(result.meanEvents).toBeGreaterThan(0);
+    expect(result.highThreshold).toBeCloseTo(result.meanEvents * 2, 0);
+    expect(result.lowThreshold).toBeCloseTo(result.meanEvents * 0.25, 0);
+  });
+
+  it('returns insufficient data when fewer than 2 features have events', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([
+      { feature_id: 'f1', count: BigInt(100) },
+    ]);
+    prisma.feature.findMany.mockResolvedValue([
+      {
+        id: 'f1',
+        name: 'Feature A',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f2',
+        name: 'Feature B',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+    ]);
+
+    const result = await service.getFeatureUsageInsights(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+    );
+
+    expect(result.insufficientData).toBe(true);
+    expect(result.insights).toEqual([]);
+    expect(result.insufficientDataReason).toContain('At least 2 features');
+  });
+
+  it('labels features with zero events as insufficientData', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([
+      { feature_id: 'f1', count: BigInt(200) },
+      { feature_id: 'f2', count: BigInt(100) },
+    ]);
+    prisma.feature.findMany.mockResolvedValue([
+      {
+        id: 'f1',
+        name: 'Feature A',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f2',
+        name: 'Feature B',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f3',
+        name: 'Feature C',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+    ]);
+
+    const result = await service.getFeatureUsageInsights(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+    );
+
+    const noDataFeature = result.insights.find((i) => i.featureId === 'f3');
+    expect(noDataFeature).toBeDefined();
+    expect(noDataFeature!.insufficientData).toBe(true);
+    expect(noDataFeature!.totalEvents).toBe(0);
+    expect(noDataFeature!.classification).toBe('low');
+  });
+
+  it('returns empty insights when no active features exist', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([]);
+    prisma.feature.findMany.mockResolvedValue([]);
+
+    const result = await service.getFeatureUsageInsights(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+    );
+
+    expect(result.insufficientData).toBe(true);
+    expect(result.insights).toEqual([]);
+    expect(result.insufficientDataReason).toContain(
+      'No features have event data',
+    );
+  });
+
+  it('includes method description in result', async () => {
+    prisma.organizationMember.findUnique.mockResolvedValue({ id: 'm1' });
+    prisma.project.findFirst.mockResolvedValue({
+      id: 'proj1',
+      organizationId: 'org1',
+    });
+    prisma.$queryRaw.mockResolvedValue([
+      { feature_id: 'f1', count: BigInt(100) },
+      { feature_id: 'f2', count: BigInt(50) },
+    ]);
+    prisma.feature.findMany.mockResolvedValue([
+      {
+        id: 'f1',
+        name: 'Feature A',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+      {
+        id: 'f2',
+        name: 'Feature B',
+        status: 'ACTIVE',
+        projectId: 'proj1',
+        createdAt: new Date(),
+      },
+    ]);
+
+    const result = await service.getFeatureUsageInsights(
+      'org1',
+      'proj1',
+      'user1',
+      '2026-11-01',
+      '2026-11-07',
+    );
+
+    expect(result.method).toContain('2× mean');
+    expect(result.method).toContain('0.25× mean');
+  });
+});

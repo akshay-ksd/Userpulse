@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 18 |
+| Not Started | 17 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 38 |
-| Overall completion | 68% |
+| Done | 39 |
+| Overall completion | 70% |
 
 **Last updated:** 2026-11-17
 
@@ -135,7 +135,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-036 | Define a funnel | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-037 | View funnel conversion and drop-off | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-038 | View common user journeys | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
-| US-039 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-039 | Identify high or low feature usage | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-040 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-09 AI Recommendations
@@ -1694,6 +1694,43 @@ A story may be marked **Done** only when:
 - No session windowing — MVP uses full date range per user identity.
 - No journey visualization (Sankey/flow) — table display only.
 - Performance: raw SQL window functions on events table; ClickHouse migration would address scale.
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.
+
+### US-039 — Identify high or low feature usage
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-17
+- **Last updated:** 2026-11-17
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-039-identify-high-low-feature-usage.md`
+
+**Acceptance criteria**
+- [x] Features meeting documented high- or low-usage rules are identified. — Features classified as 'high' (>2× mean), 'low' (<0.25× mean), or 'normal' based on total event count vs mean across features with data.
+- [x] Each insight includes feature, metric, and period. — Each insight returns featureId, featureName, totalEvents, classification, plus startDate/endDate in the response.
+- [x] Comparison baseline is visible. — Response includes meanEvents, highThreshold, lowThreshold; UI displays baseline info bar.
+- [x] Insufficient data is labeled. — Features with zero events get `insufficientData: true`; projects with <2 features with data return `insufficientData: true` with reason string.
+- [x] Insights are derived from deterministic analytics. — Pure SQL aggregation with documented classification rules; no AI or heuristics.
+
+**Implementation notes**
+- API: Added `getFeatureUsageInsights()` to `AnalyticsService` with `FeatureUsageInsight` and `FeatureUsageInsightsResult` interfaces. Uses same feature_event_mappings join as feature-usage-comparison. Added `GET feature-usage-insights` to `AnalyticsController`.
+- Web: Added `FeatureUsageInsightsSection` component to project detail page between User Journeys and Features sections. Table with feature name, event count, classification badge (green/amber/gray). Toggleable method description.
+- Key files: `apps/api/src/analytics/analytics.service.ts`, `apps/api/src/analytics/analytics.controller.ts`, `apps/api/src/analytics/__tests__/analytics.service.spec.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 224 passed (6 new feature-usage-insights tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass (after formatting).
+
+**Blockers / follow-up**
+- E2E tests require PostgreSQL; not available in this cloud environment.
+- Thresholds (2× mean / 0.25× mean) are hardcoded; can be made configurable later.
+- No trend-based insights (covered by US-040).
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.

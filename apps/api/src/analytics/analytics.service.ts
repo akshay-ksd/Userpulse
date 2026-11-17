@@ -34,6 +34,9 @@ const USER_JOURNEY_IDENTITY_RULE =
 const USER_JOURNEY_SESSION_RULE =
   'No session windowing is applied. Events are ordered by timestamp across the full date range per user identity.';
 
+const FEATURE_USAGE_INSIGHTS_METHOD =
+  'Features are classified by comparing their total event count to the mean across all features with data. High usage: > 2× mean. Low usage: < 0.25× mean. Features with zero events are labeled as insufficient data.';
+
 const FEATURE_ADOPTION_DEFINITION =
   'Feature adoption rate is the percentage of active users who used the feature during the selected period. An active user is a distinct identified (userId) or anonymous (anonymousId) reference with at least one valid event.';
 
@@ -73,6 +76,28 @@ export interface FeatureUsageComparisonResult {
   startDate: string;
   endDate: string;
   metric: string;
+}
+
+export interface FeatureUsageInsight {
+  featureId: string;
+  featureName: string;
+  totalEvents: number;
+  classification: 'high' | 'low' | 'normal';
+  insufficientData: boolean;
+}
+
+export interface FeatureUsageInsightsResult {
+  insights: FeatureUsageInsight[];
+  meanEvents: number;
+  highThreshold: number;
+  lowThreshold: number;
+  totalFeatures: number;
+  featuresWithData: number;
+  startDate: string;
+  endDate: string;
+  method: string;
+  insufficientData: boolean;
+  insufficientDataReason?: string;
 }
 
 export interface UserJourneySequence {
@@ -620,6 +645,132 @@ export class AnalyticsService {
       minUsers,
       identityRule: USER_JOURNEY_IDENTITY_RULE,
       sessionRule: USER_JOURNEY_SESSION_RULE,
+    };
+  }
+
+  async getFeatureUsageInsights(
+    orgId: string,
+    projectId: string,
+    userId: string,
+    startDate: string,
+    endDate: string,
+  ): Promise<FeatureUsageInsightsResult> {
+    const membership = await this.prisma.organizationMember.findUnique({
+      where: {
+        organizationId_userId: { organizationId: orgId, userId },
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException();
+    }
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, organizationId: orgId },
+    });
+
+    if (!project) {
+      throw new NotFoundException();
+    }
+
+    const startDateTime = new Date(`${startDate}T00:00:00.000Z`);
+    const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
+
+    const featureEventRows = await this.prisma.$queryRaw<
+      Array<{ feature_id: string; count: bigint }>
+    >`
+      SELECT fem."feature_id" AS feature_id,
+             COUNT(*)::bigint AS count
+      FROM events e
+      INNER JOIN feature_event_mappings fem
+        ON e."project_id" = fem."project_id" AND e."event_name" = fem."event_name"
+      WHERE e."project_id" = ${projectId}
+        AND e."validation_status" = 'VALID'
+        AND e."event_timestamp" >= ${startDateTime}
+        AND e."event_timestamp" <= ${endDateTime}
+      GROUP BY fem."feature_id"
+    `;
+
+    const featureEventMap = new Map<string, number>();
+    for (const row of featureEventRows) {
+      featureEventMap.set(row.feature_id, Number(row.count));
+    }
+
+    const activeFeatures = await this.prisma.feature.findMany({
+      where: { projectId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const totalFeatures = activeFeatures.length;
+    const featuresWithData = activeFeatures.filter(
+      (f) => (featureEventMap.get(f.id) ?? 0) > 0,
+    ).length;
+
+    if (featuresWithData < 2) {
+      return {
+        insights: [],
+        meanEvents: 0,
+        highThreshold: 0,
+        lowThreshold: 0,
+        totalFeatures,
+        featuresWithData,
+        startDate,
+        endDate,
+        method: FEATURE_USAGE_INSIGHTS_METHOD,
+        insufficientData: true,
+        insufficientDataReason:
+          featuresWithData === 0
+            ? 'No features have event data in this period.'
+            : 'At least 2 features with event data are needed for comparison.',
+      };
+    }
+
+    const totalEventsAcrossFeatures = activeFeatures.reduce(
+      (sum, f) => sum + (featureEventMap.get(f.id) ?? 0),
+      0,
+    );
+    const meanEvents = totalEventsAcrossFeatures / featuresWithData;
+    const highThreshold = meanEvents * 2;
+    const lowThreshold = meanEvents * 0.25;
+
+    const insights: FeatureUsageInsight[] = activeFeatures.map((f) => {
+      const totalEvents = featureEventMap.get(f.id) ?? 0;
+      let classification: 'high' | 'low' | 'normal';
+      let insufficientData = false;
+
+      if (totalEvents === 0) {
+        classification = 'low';
+        insufficientData = true;
+      } else if (totalEvents > highThreshold) {
+        classification = 'high';
+      } else if (totalEvents < lowThreshold) {
+        classification = 'low';
+      } else {
+        classification = 'normal';
+      }
+
+      return {
+        featureId: f.id,
+        featureName: f.name,
+        totalEvents,
+        classification,
+        insufficientData,
+      };
+    });
+
+    insights.sort((a, b) => b.totalEvents - a.totalEvents);
+
+    return {
+      insights,
+      meanEvents: Math.round(meanEvents * 10) / 10,
+      highThreshold: Math.round(highThreshold * 10) / 10,
+      lowThreshold: Math.round(lowThreshold * 10) / 10,
+      totalFeatures,
+      featuresWithData,
+      startDate,
+      endDate,
+      method: FEATURE_USAGE_INSIGHTS_METHOD,
+      insufficientData: false,
     };
   }
 }

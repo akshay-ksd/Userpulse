@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 16 |
+| Not Started | 15 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 40 |
-| Overall completion | 71% |
+| Done | 41 |
+| Overall completion | 73% |
 
 **Last updated:** 2026-11-17
 
@@ -142,7 +142,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-041 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-041 | Request product analysis | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
 | US-042 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-043 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-044 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1768,6 +1768,47 @@ A story may be marked **Done** only when:
 - E2E tests require PostgreSQL; not available in this cloud environment.
 - Thresholds (30% change, volume minimum 10) are hardcoded; can be made configurable later.
 - Statistical significance testing deferred; simple percentage comparison for MVP.
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.
+
+### US-041 — Request product analysis
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-17
+- **Last updated:** 2026-11-17
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-041-request-product-analysis.md`
+
+**Acceptance criteria**
+- [x] An authorized user can request analysis for a project. — `POST /organizations/:orgId/projects/:projectId/analysis-runs` (201), org membership verified.
+- [x] The request is associated with the correct tenant and project. — `organizationId` and `projectId` stored on `AnalysisRun` record, derived from verified membership.
+- [x] An analysis-run record is created. — `AnalysisRun` Prisma model with status lifecycle (QUEUED → RUNNING → COMPLETED/FAILED/INSUFFICIENT_DATA).
+- [x] Queued, running, completed, and failed statuses are visible. — `GET` list and detail endpoints; web UI with color-coded status badges and auto-refresh.
+- [x] Insufficient data is communicated clearly. — Minimum 10 events required; `INSUFFICIENT_DATA` status with descriptive message; web UI shows orange badge and guidance.
+
+**Implementation notes**
+- Database: `AnalysisRun` model added to Prisma schema. Migration `20261117200000_add_analysis_runs`. Indexes on `(projectId, status)` and `(projectId, createdAt)`.
+- API: New `AnalysisRunsModule` with `AnalysisRunsService` (CRUD + access control), `AnalysisRunProcessorService` (background poller, `@Interval(10000)`), and `AnalysisRunsController` (3 endpoints: POST, GET list, GET detail).
+- API: Concurrency control — only one QUEUED or RUNNING run per project (409 on conflict). Background processor uses `FOR UPDATE SKIP LOCKED` for safe concurrent processing.
+- Web: `AnalysisRunsSection` component added to project workspace page. Auto-refreshes every 10s when active runs exist. "Request Analysis" button disabled during active runs.
+- Key files: `apps/api/src/analysis-runs/` (all new), `packages/database/prisma/schema.prisma`, `apps/api/src/app.module.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 252 passed (13 new: 9 service + 4 processor).
+- [ ] Integration / E2E tests: `pnpm --filter api test:e2e` — not run (no PostgreSQL). 9 e2e tests written.
+- [x] Lint: `pnpm lint` — pass (pre-existing API warnings only, no new issues).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment. Tests are written and ready to run.
+- Actual AI analysis (Bedrock integration) deferred to US-042.
+- For MVP, COMPLETED means data sufficiency validated. US-042 adds recommendation generation.
+- Background processor polls every 10s. Production may use EventBridge (US-046).
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.

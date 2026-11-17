@@ -132,6 +132,7 @@ model Project {
   features             Feature[]
   featureEventMappings FeatureEventMapping[]
   funnels              Funnel[]
+  analysisRuns         AnalysisRun[]
 
   @@index([organizationId])
   @@map("projects")
@@ -231,6 +232,28 @@ model Funnel {
 
   @@index([projectId])
   @@map("funnels")
+}
+
+model AnalysisRun {
+  id              String    @id @default(uuid())
+  projectId       String
+  organizationId  String
+  requestedById   String
+  status          String    @default("QUEUED")
+  periodStart     DateTime  @db.Timestamptz(6)
+  periodEnd       DateTime  @db.Timestamptz(6)
+  eventCount      Int?
+  statusMessage   String?
+  startedAt       DateTime? @db.Timestamptz(6)
+  completedAt     DateTime? @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
+  @@map("analysis_runs")
 }
 
 model FunnelStep {

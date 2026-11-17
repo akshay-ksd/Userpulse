@@ -3227,6 +3227,179 @@ function FunnelForm({
   );
 }
 
+interface AnalysisRunData {
+  id: string;
+  status: string;
+  periodStart: string;
+  periodEnd: string;
+  eventCount: number | null;
+  statusMessage: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  createdAt: string;
+}
+
+function statusBadge(status: string) {
+  const styles: Record<string, string> = {
+    QUEUED: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300',
+    RUNNING: 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+    COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+    FAILED: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+    INSUFFICIENT_DATA: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300',
+  };
+  return (
+    <span
+      className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${styles[status] ?? 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'}`}
+    >
+      {status.replace('_', ' ')}
+    </span>
+  );
+}
+
+function AnalysisRunsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [runs, setRuns] = useState<AnalysisRunData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [requesting, setRequesting] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      try {
+        const res = await fetch(
+          `${API_URL}/organizations/${orgId}/projects/${projectId}/analysis-runs`,
+          { credentials: 'include' },
+        );
+        if (cancelled) return;
+        if (res.ok) {
+          const data: AnalysisRunData[] = await res.json();
+          setRuns(data);
+          setError('');
+        } else {
+          setError('Failed to load analysis runs.');
+        }
+      } catch {
+        if (!cancelled) setError('Network error loading analysis runs.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId, refreshKey]);
+
+  useEffect(() => {
+    const hasActive = runs.some((r) => r.status === 'QUEUED' || r.status === 'RUNNING');
+    if (!hasActive) return;
+
+    const interval = setInterval(() => {
+      setRefreshKey((k) => k + 1);
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, [runs]);
+
+  const hasActiveRun = runs.some((r) => r.status === 'QUEUED' || r.status === 'RUNNING');
+
+  async function handleRequest() {
+    setRequesting(true);
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/analysis-runs`,
+        {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        },
+      );
+      if (res.ok) {
+        setRefreshKey((k) => k + 1);
+      } else if (res.status === 409) {
+        setError('An analysis is already in progress.');
+      } else {
+        setError('Failed to request analysis.');
+      }
+    } catch {
+      setError('Network error requesting analysis.');
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-medium text-black dark:text-zinc-50">AI Analysis</h2>
+        <button
+          onClick={handleRequest}
+          disabled={requesting || hasActiveRun}
+          className="rounded-lg border border-black/[.08] bg-black px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/[.145] dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+        >
+          {requesting ? 'Requesting…' : 'Request Analysis'}
+        </button>
+      </div>
+
+      {loading && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading analysis runs…</p>
+      )}
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {!loading && runs.length === 0 && (
+        <div className="rounded-lg border border-black/[.08] bg-zinc-50 px-4 py-3 dark:border-white/[.08] dark:bg-zinc-900">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
+            No analysis runs yet. Request an analysis to get AI-powered product insights and
+            recommendations.
+          </p>
+        </div>
+      )}
+
+      {!loading && runs.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {runs.map((run) => (
+            <div
+              key={run.id}
+              className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {statusBadge(run.status)}
+                  <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                    {new Date(run.periodStart).toLocaleDateString()} –{' '}
+                    {new Date(run.periodEnd).toLocaleDateString()}
+                  </span>
+                </div>
+                <span className="text-xs text-zinc-400 dark:text-zinc-500">
+                  {new Date(run.createdAt).toLocaleString()}
+                </span>
+              </div>
+              {run.eventCount != null && (
+                <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+                  {run.eventCount.toLocaleString()} events analyzed
+                </p>
+              )}
+              {run.statusMessage && (
+                <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{run.statusMessage}</p>
+              )}
+              {run.status === 'INSUFFICIENT_DATA' && (
+                <p className="mt-2 text-sm text-orange-600 dark:text-orange-400">
+                  Not enough data to analyze. Ensure your project is tracking events before
+                  requesting analysis.
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ProjectDetail() {
   const { id: orgId, projectId } = useParams<{ id: string; projectId: string }>();
   const router = useRouter();
@@ -3544,6 +3717,10 @@ function ProjectDetail() {
             .catch(() => {});
         }}
       />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <AnalysisRunsSection orgId={orgId} projectId={project.id} />
 
       <p className="text-sm text-zinc-500 dark:text-zinc-500">
         Created {new Date(project.createdAt).toLocaleDateString()}

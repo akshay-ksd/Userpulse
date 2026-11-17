@@ -13,6 +13,7 @@ import { IngestionModule } from './ingestion/ingestion.module.js';
 import { EventProcessorModule } from './event-processor/event-processor.module.js';
 import { AnalyticsModule } from './analytics/analytics.module.js';
 import { FunnelsModule } from './funnels/funnels.module.js';
+import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
@@ -38,6 +39,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
     EventProcessorModule,
     AnalyticsModule,
     FunnelsModule,
+    AnalysisRunsModule,
   ],
   controllers: [AppController, MeController],
   providers: [AppService],

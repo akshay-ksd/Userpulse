@@ -3256,6 +3256,136 @@ function statusBadge(status: string) {
   );
 }
 
+type RecommendationData = {
+  id: string;
+  title: string;
+  summary: string;
+  suggestedAction: string;
+  category: string;
+  affectedArea: string | null;
+  periodStart: string;
+  periodEnd: string;
+  status: string;
+  createdAt: string;
+};
+
+const categoryColors: Record<string, string> = {
+  adoption: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300',
+  engagement: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  retention: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  ux: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300',
+  general: 'bg-zinc-100 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-300',
+};
+
+function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
+  const [recommendations, setRecommendations] = useState<RecommendationData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch(`${API_URL}/organizations/${orgId}/projects/${projectId}/recommendations`, {
+      credentials: 'include',
+    })
+      .then(async (res) => {
+        if (cancelled) return;
+        if (!res.ok) {
+          setError('Failed to load recommendations.');
+          setLoading(false);
+          return;
+        }
+        const data = await res.json();
+        setRecommendations(data);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError('Failed to load recommendations.');
+          setLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [orgId, projectId]);
+
+  return (
+    <section>
+      <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-white">Recommendations</h2>
+
+      {loading && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading recommendations…</p>
+      )}
+
+      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+
+      {!loading && !error && recommendations.length === 0 && (
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
+          No recommendations yet. Request an analysis to generate insights.
+        </p>
+      )}
+
+      {!loading && !error && recommendations.length > 0 && (
+        <div className="space-y-3">
+          {recommendations.map((rec) => (
+            <div
+              key={rec.id}
+              className="rounded-lg border border-black/[.08] p-4 dark:border-white/[.145]"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <div className="mb-1 flex items-center gap-2">
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${categoryColors[rec.category] ?? categoryColors.general}`}
+                    >
+                      {rec.category}
+                    </span>
+                    {rec.affectedArea && (
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        {rec.affectedArea}
+                      </span>
+                    )}
+                  </div>
+                  <h3 className="font-medium text-zinc-900 dark:text-white">{rec.title}</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
+                  className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                >
+                  {expandedId === rec.id ? 'Collapse' : 'Details'}
+                </button>
+              </div>
+
+              <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{rec.summary}</p>
+
+              {expandedId === rec.id && (
+                <div className="mt-3 space-y-2 border-t border-black/[.08] pt-3 dark:border-white/[.145]">
+                  <div>
+                    <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">
+                      Suggested action:
+                    </span>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-400">
+                      {rec.suggestedAction}
+                    </p>
+                  </div>
+                  <div className="text-xs text-zinc-500 dark:text-zinc-500">
+                    Evidence period: {new Date(rec.periodStart).toLocaleDateString()} –{' '}
+                    {new Date(rec.periodEnd).toLocaleDateString()}
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function AnalysisRunsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
   const [runs, setRuns] = useState<AnalysisRunData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -3717,6 +3847,10 @@ function ProjectDetail() {
             .catch(() => {});
         }}
       />
+
+      <hr className="border-black/[.08] dark:border-white/[.145]" />
+
+      <RecommendationsSection orgId={orgId} projectId={project.id} />
 
       <hr className="border-black/[.08] dark:border-white/[.145]" />
 

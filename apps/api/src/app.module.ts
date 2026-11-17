@@ -14,6 +14,7 @@ import { EventProcessorModule } from './event-processor/event-processor.module.j
 import { AnalyticsModule } from './analytics/analytics.module.js';
 import { FunnelsModule } from './funnels/funnels.module.js';
 import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
+import { RecommendationsModule } from './recommendations/recommendations.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
@@ -40,6 +41,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
     AnalyticsModule,
     FunnelsModule,
     AnalysisRunsModule,
+    RecommendationsModule,
   ],
   controllers: [AppController, MeController],
   providers: [AppService],

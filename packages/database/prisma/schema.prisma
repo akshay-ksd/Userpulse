@@ -133,6 +133,7 @@ model Project {
   featureEventMappings FeatureEventMapping[]
   funnels              Funnel[]
   analysisRuns         AnalysisRun[]
+  recommendations      Recommendation[]
 
   @@index([organizationId])
   @@map("projects")
@@ -170,8 +171,9 @@ model Feature {
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  project  Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  mappings FeatureEventMapping[]
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mappings        FeatureEventMapping[]
+  recommendations Recommendation[]
 
   @@index([projectId])
   @@map("features")
@@ -249,11 +251,40 @@ model AnalysisRun {
   createdAt       DateTime  @default(now()) @db.Timestamptz(6)
   updatedAt       DateTime  @updatedAt
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recommendations Recommendation[]
 
   @@index([projectId, status])
   @@index([projectId, createdAt])
   @@map("analysis_runs")
+}
+
+model Recommendation {
+  id                String    @id @default(uuid())
+  analysisRunId     String
+  projectId         String
+  organizationId    String
+  title             String
+  summary           String
+  suggestedAction   String
+  category          String
+  affectedFeatureId String?
+  affectedArea      String?
+  evidence          Json
+  periodStart       DateTime  @db.Timestamptz(6)
+  periodEnd         DateTime  @db.Timestamptz(6)
+  status            String    @default("PUBLISHED")
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt
+
+  analysisRun AnalysisRun @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  project     Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  feature     Feature?    @relation(fields: [affectedFeatureId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status])
+  @@index([analysisRunId])
+  @@index([projectId, createdAt])
+  @@map("recommendations")
 }
 
 model FunnelStep {

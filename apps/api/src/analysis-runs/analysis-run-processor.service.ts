@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@userpulse/database';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { EvidenceGathererService } from '../recommendations/evidence-gatherer.service.js';
+import { RecommendationGeneratorService } from '../recommendations/recommendation-generator.service.js';
 
 const MIN_EVENT_COUNT = 10;
 
@@ -9,7 +11,11 @@ const MIN_EVENT_COUNT = 10;
 export class AnalysisRunProcessorService {
   private readonly logger = new Logger(AnalysisRunProcessorService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly evidenceGatherer: EvidenceGathererService,
+    private readonly recommendationGenerator: RecommendationGeneratorService,
+  ) {}
 
   @Interval(10_000)
   async processNextRun(): Promise<void> {
@@ -63,16 +69,67 @@ export class AnalysisRunProcessorService {
             return;
           }
 
+          // Gather evidence and generate recommendations
+          let recommendationCount = 0;
+          let statusMessage: string | null = null;
+
+          try {
+            const evidence = await this.evidenceGatherer.gatherEvidence(
+              run.projectId,
+              run.organizationId,
+              run.periodStart,
+              run.periodEnd,
+            );
+
+            const recommendations =
+              await this.recommendationGenerator.generateRecommendations(
+                evidence,
+              );
+
+            if (recommendations.length > 0) {
+              await tx.recommendation.createMany({
+                data: recommendations.map((rec) => ({
+                  analysisRunId: runId,
+                  projectId: run.projectId,
+                  organizationId: run.organizationId,
+                  title: rec.title,
+                  summary: rec.summary,
+                  suggestedAction: rec.suggestedAction,
+                  category: rec.category,
+                  affectedFeatureId: rec.affectedFeatureId,
+                  affectedArea: rec.affectedArea,
+                  evidence: rec.evidence as Prisma.InputJsonValue,
+                  periodStart: run.periodStart,
+                  periodEnd: run.periodEnd,
+                  status: 'PUBLISHED',
+                })),
+              });
+              recommendationCount = recommendations.length;
+            }
+          } catch (recError) {
+            const message =
+              recError instanceof Error ? recError.message : String(recError);
+            this.logger.warn(
+              `Analysis run ${runId}: recommendation generation failed: ${message}`,
+            );
+            statusMessage = `Analysis completed with ${eventCount} events. Recommendation generation failed: ${message}`;
+          }
+
           await tx.analysisRun.update({
             where: { id: runId },
             data: {
               status: 'COMPLETED',
               eventCount,
+              statusMessage:
+                statusMessage ??
+                (recommendationCount > 0
+                  ? `Analysis completed: ${recommendationCount} recommendation(s) generated.`
+                  : `Analysis completed with ${eventCount} events. No actionable recommendations found.`),
               completedAt: new Date(),
             },
           });
           this.logger.log(
-            `Analysis run ${runId}: completed with ${eventCount} events`,
+            `Analysis run ${runId}: completed with ${eventCount} events, ${recommendationCount} recommendations`,
           );
         } catch (error) {
           const message =

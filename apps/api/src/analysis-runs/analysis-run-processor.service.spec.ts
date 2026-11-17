@@ -1,6 +1,8 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AnalysisRunProcessorService } from './analysis-run-processor.service.js';
+import type { EvidenceGathererService } from '../recommendations/evidence-gatherer.service.js';
+import type { RecommendationGeneratorService } from '../recommendations/recommendation-generator.service.js';
 
 function mockPrisma() {
   const txAnalysisRun = {
@@ -17,6 +19,7 @@ function mockPrisma() {
         $queryRaw: vi.fn().mockResolvedValue([]),
         analysisRun: txAnalysisRun,
         event: txEvent,
+        recommendation: { createMany: vi.fn().mockResolvedValue({ count: 0 }) },
       }),
     ),
     _txAnalysisRun: txAnalysisRun,
@@ -25,6 +28,28 @@ function mockPrisma() {
     _txAnalysisRun: typeof txAnalysisRun;
     _txEvent: typeof txEvent;
   };
+}
+
+function mockEvidenceGatherer(): EvidenceGathererService {
+  return {
+    gatherEvidence: vi.fn().mockResolvedValue({
+      project: { id: 'proj-1', name: 'Test', description: null },
+      features: [],
+      featureAdoption: [],
+      activityChanges: [],
+      featureUsage: [],
+      topEvents: [],
+      activeUsers: 10,
+      totalEvents: 50,
+      period: { start: '2026-10-18', end: '2026-11-17' },
+    }),
+  } as unknown as EvidenceGathererService;
+}
+
+function mockRecommendationGenerator(): RecommendationGeneratorService {
+  return {
+    generateRecommendations: vi.fn().mockResolvedValue([]),
+  } as unknown as RecommendationGeneratorService;
 }
 
 const now = new Date();
@@ -42,11 +67,17 @@ const queuedRun = {
 describe('AnalysisRunProcessorService', () => {
   let service: AnalysisRunProcessorService;
   let prisma: ReturnType<typeof mockPrisma>;
+  let evidenceGatherer: EvidenceGathererService;
+  let recommendationGenerator: RecommendationGeneratorService;
 
   beforeEach(() => {
     prisma = mockPrisma();
+    evidenceGatherer = mockEvidenceGatherer();
+    recommendationGenerator = mockRecommendationGenerator();
     service = new AnalysisRunProcessorService(
       prisma as unknown as PrismaService,
+      evidenceGatherer,
+      recommendationGenerator,
     );
   });
 
@@ -61,6 +92,9 @@ describe('AnalysisRunProcessorService', () => {
           },
           event: {
             count: vi.fn().mockResolvedValue(50),
+          },
+          recommendation: {
+            createMany: vi.fn().mockResolvedValue({ count: 0 }),
           },
         });
       },
@@ -91,6 +125,9 @@ describe('AnalysisRunProcessorService', () => {
           event: {
             count: vi.fn().mockResolvedValue(3),
           },
+          recommendation: {
+            createMany: vi.fn().mockResolvedValue({ count: 0 }),
+          },
         });
       },
     );
@@ -110,6 +147,9 @@ describe('AnalysisRunProcessorService', () => {
           $queryRaw: vi.fn().mockResolvedValue([]),
           analysisRun: { update: vi.fn(), findUniqueOrThrow: vi.fn() },
           event: { count: vi.fn() },
+          recommendation: {
+            createMany: vi.fn().mockResolvedValue({ count: 0 }),
+          },
         });
       },
     );
@@ -135,6 +175,9 @@ describe('AnalysisRunProcessorService', () => {
           },
           event: {
             count: vi.fn().mockRejectedValue(new Error('DB error')),
+          },
+          recommendation: {
+            createMany: vi.fn().mockResolvedValue({ count: 0 }),
           },
         });
       },

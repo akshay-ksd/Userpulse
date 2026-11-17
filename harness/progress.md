@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 15 |
+| Not Started | 14 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 41 |
-| Overall completion | 73% |
+| Done | 42 |
+| Overall completion | 75% |
 
 **Last updated:** 2026-11-17
 
@@ -143,7 +143,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-041 | Request product analysis | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | — |
-| US-042 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-042 | Generate an evidence-backed recommendation | Done | 100% | Claude Code agent | 2026-11-17 | 2026-11-17 | Complete |
 | US-043 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-044 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-045 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1812,5 +1812,32 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-17; results recorded above.
+
+### US-042 — Generate an evidence-backed recommendation
+
+**Completed:** 2026-11-17
+
+**What was built:**
+- `Recommendation` Prisma model with relations to AnalysisRun, Project, Feature and indexes on (projectId, status), (analysisRunId), (projectId, createdAt).
+- `EvidenceGathererService`: gathers feature adoption rates, activity changes, feature usage classification, top events, active users for a project/period.
+- `RecommendationGeneratorService`: rule-based detection of low adoption (<10%), significant activity changes (>30%), high/low usage features, overall low adoption. Each recommendation validated for required fields and evidence.
+- `RecommendationsService`: findByProject, findOne, findByAnalysisRun with standard verifyProjectAccess pattern.
+- `RecommendationsController`: GET list and GET detail endpoints.
+- Extended `AnalysisRunProcessorService` to gather evidence and generate recommendations after confirming sufficient data, with graceful fallback on failure.
+- Added GET recommendations endpoint on AnalysisRunsController.
+- `RecommendationsSection` component on project workspace page with expandable cards, category badges, and evidence periods.
+
+**Verification:**
+- [x] Unit tests: `pnpm --filter api test` — 271 passed (23 files, 19 new tests across 3 new + 1 updated spec files).
+- [ ] E2E tests: not run (no PostgreSQL in cloud environment).
+- [x] Lint: `pnpm lint` — pass.
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Decisions:**
+- Used rule-based recommendation generation instead of Bedrock AI (no AWS credentials in environment). Architecture supports adding Bedrock later via the `RecommendationGeneratorService` abstraction.
+- Recommendations are generated atomically within the analysis run transaction.
+- If recommendation generation fails, the analysis run still completes (COMPLETED status with failure note in statusMessage).
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

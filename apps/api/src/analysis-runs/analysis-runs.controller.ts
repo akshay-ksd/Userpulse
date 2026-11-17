@@ -9,10 +9,14 @@ import {
   AnalysisRunsService,
   type AnalysisRunInfo,
 } from './analysis-runs.service.js';
+import { RecommendationsService } from '../recommendations/recommendations.service.js';
 
 @Controller('organizations/:orgId/projects/:projectId/analysis-runs')
 export class AnalysisRunsController {
-  constructor(private readonly analysisRunsService: AnalysisRunsService) {}
+  constructor(
+    private readonly analysisRunsService: AnalysisRunsService,
+    private readonly recommendationsService: RecommendationsService,
+  ) {}
 
   @Post()
   @HttpCode(201)
@@ -47,5 +51,20 @@ export class AnalysisRunsController {
     @Param('runId') runId: string,
   ): Promise<AnalysisRunInfo> {
     return this.analysisRunsService.findOne(orgId, projectId, runId, user.id);
+  }
+
+  @Get(':runId/recommendations')
+  findRunRecommendations(
+    @CurrentUser() user: AuthUser,
+    @Param('orgId') orgId: string,
+    @Param('projectId') projectId: string,
+    @Param('runId') runId: string,
+  ) {
+    return this.recommendationsService.findByAnalysisRun(
+      orgId,
+      projectId,
+      runId,
+      user.id,
+    );
   }
 }

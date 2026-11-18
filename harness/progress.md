@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 5 |
+| Not Started | 4 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 51 |
-| Overall completion | 91% |
+| Done | 52 |
+| Overall completion | 93% |
 
 **Last updated:** 2026-11-18
 
@@ -163,7 +163,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-051 | Enforce tenant isolation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 331 tests pass |
-| US-052 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-052 | Protect tracking credentials | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 343 tests pass |
 | US-053 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-054 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-055 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -2142,5 +2142,38 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All six acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; results recorded above.
+
+### US-052 — Protect tracking credentials
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-18
+- **Last updated:** 2026-11-18
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-052-protect-tracking-credentials.md`
+
+**Acceptance criteria**
+- [x] Raw credentials are not stored. — SHA-256 hash in `keyHash`; raw key returned only at creation time.
+- [x] Credentials are not written to logs. — Audit confirmed no logger statements expose credentials.
+- [x] Credentials can be revoked and rotated. — `revoke()` and `rotate()` with atomic transactions.
+- [x] Ingestion validates credentials before accepting events. — `ApiKeyGuard` validates all requests.
+- [x] Tracking credentials cannot authorize administrative actions. — Guard scoped to ingestion only.
+- [x] Credential changes are audited. — `createdBy` and `revokedBy` fields recorded.
+
+**Implementation notes**
+- All credential protection already implemented in US-012/013/021. This story adds 12 focused security verification tests.
+- Key file: `apps/api/src/__tests__/credential-protection.spec.ts`
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 343 passed (12 new credential protection tests).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- None.
+
+**Completion note**
+- All six acceptance criteria verified by automated tests and security audit on 2026-11-18; results recorded above.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

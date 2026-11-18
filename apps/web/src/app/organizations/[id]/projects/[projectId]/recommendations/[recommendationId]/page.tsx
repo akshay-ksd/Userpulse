@@ -252,6 +252,8 @@ function RecommendationDetailContent() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+  const [showDeferForm, setShowDeferForm] = useState(false);
+  const [deferReason, setDeferReason] = useState('');
 
   async function handleStatusChange(newStatus: string, reason?: string) {
     setActionLoading(true);
@@ -279,6 +281,8 @@ function RecommendationDetailContent() {
       setState({ status: 'ready', rec: updated });
       setShowRejectForm(false);
       setRejectReason('');
+      setShowDeferForm(false);
+      setDeferReason('');
     } catch {
       setActionError('Network error. Please try again.');
     } finally {
@@ -463,12 +467,66 @@ function RecommendationDetailContent() {
             <button
               type="button"
               disabled={actionLoading}
-              onClick={() => setShowRejectForm(!showRejectForm)}
+              onClick={() => {
+                setShowDeferForm(!showDeferForm);
+                setShowRejectForm(false);
+              }}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 dark:bg-amber-700 dark:hover:bg-amber-600"
+            >
+              Defer
+            </button>
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={() => {
+                setShowRejectForm(!showRejectForm);
+                setShowDeferForm(false);
+              }}
               className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 dark:bg-red-700 dark:hover:bg-red-600"
             >
               Reject
             </button>
           </div>
+          {showDeferForm && (
+            <div className="flex flex-col gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 dark:border-amber-800 dark:bg-amber-950">
+              <label
+                htmlFor="defer-reason"
+                className="text-sm font-medium text-amber-800 dark:text-amber-200"
+              >
+                Reason for deferral (optional)
+              </label>
+              <textarea
+                id="defer-reason"
+                value={deferReason}
+                onChange={(e) => setDeferReason(e.target.value)}
+                maxLength={1000}
+                rows={3}
+                placeholder="Why are you deferring this recommendation?"
+                className="rounded-md border border-amber-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 dark:border-amber-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => handleStatusChange('DEFERRED', deferReason.trim() || undefined)}
+                  className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:opacity-50 dark:bg-amber-700 dark:hover:bg-amber-600"
+                >
+                  {actionLoading ? 'Deferring…' : 'Confirm deferral'}
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => {
+                    setShowDeferForm(false);
+                    setDeferReason('');
+                  }}
+                  className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {showRejectForm && (
             <div className="flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950">
               <label
@@ -516,7 +574,10 @@ function RecommendationDetailContent() {
       {rec.status !== 'PUBLISHED' && (
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900">
           <p className="text-xs text-zinc-500 dark:text-zinc-400">
-            Status: <strong>{rec.status}</strong> — This recommendation has been reviewed.
+            Status: <strong>{rec.status}</strong> —{' '}
+            {rec.status === 'DEFERRED'
+              ? 'This recommendation has been deferred for later review.'
+              : 'This recommendation has been reviewed.'}
           </p>
         </div>
       )}

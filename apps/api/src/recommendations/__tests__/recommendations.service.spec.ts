@@ -297,5 +297,88 @@ describe('RecommendationsService', () => {
       expect(result).toEqual(rec);
       expect(prisma.$transaction).not.toHaveBeenCalled();
     });
+
+    it('transitions PUBLISHED to DEFERRED with reason', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'PUBLISHED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+      const updated = { ...rec, status: 'DEFERRED' };
+      prisma.$transaction.mockResolvedValue([updated, {}]);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'DEFERRED',
+        'Will revisit after Q1 planning',
+      );
+      expect(result).toEqual(updated);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      const txArgs = prisma.$transaction.mock.calls[0][0];
+      expect(txArgs).toHaveLength(2);
+    });
+
+    it('transitions PUBLISHED to DEFERRED without reason', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'PUBLISHED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+      const updated = { ...rec, status: 'DEFERRED' };
+      prisma.$transaction.mockResolvedValue([updated, {}]);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'DEFERRED',
+      );
+      expect(result).toEqual(updated);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns recommendation unchanged when already DEFERRED (idempotent)', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'DEFERRED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'DEFERRED',
+      );
+      expect(result).toEqual(rec);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('transitions DEFERRED back to PUBLISHED', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'DEFERRED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+      const updated = { ...rec, status: 'PUBLISHED' };
+      prisma.$transaction.mockResolvedValue([updated, {}]);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'PUBLISHED',
+      );
+      expect(result).toEqual(updated);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('throws BadRequestException for DEFERRED to ACCEPTED transition', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'DEFERRED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+
+      await expect(
+        service.updateStatus(orgId, projectId, recId, userId, 'ACCEPTED'),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });

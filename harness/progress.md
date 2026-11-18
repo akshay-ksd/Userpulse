@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 7 |
+| Not Started | 6 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 49 |
-| Overall completion | 88% |
+| Done | 50 |
+| Overall completion | 89% |
 
 **Last updated:** 2026-11-18
 
@@ -156,7 +156,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-047 | View recommendations | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 296 tests pass |
 | US-048 | Accept a recommendation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 301 tests pass |
 | US-049 | Reject a recommendation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 304 tests pass |
-| US-050 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-050 | Defer a recommendation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 309 tests pass |
 
 ### EP-11 Privacy, Security, Operations
 
@@ -2071,5 +2071,39 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; results recorded above.
+
+### US-050 — Defer a recommendation
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-18
+- **Last updated:** 2026-11-18
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-050-defer-recommendation.md`
+
+**Acceptance criteria**
+- [x] An authorized user can defer a recommendation. — "Defer" button on recommendation detail page, PATCHes `{ status: 'DEFERRED', reason? }`.
+- [x] The status change is persisted and audited. — Uses existing `updateStatus()` with `RecommendationStatusHistory` entry.
+- [x] Deferred recommendations can be found using a status filter. — `?status=DEFERRED` filter already supported (from US-047).
+- [x] Recommendation evidence remains accessible. — Evidence section displays regardless of status.
+
+**Implementation notes**
+- Web: Added "Defer" button (amber) to recommendation detail page alongside Accept and Reject. Added defer reason form with optional textarea, following the reject form pattern. Added mutual exclusivity between defer and reject forms. Updated status display message to show specific text for deferred recommendations.
+- Tests: Added 5 new unit tests: PUBLISHED->DEFERRED with/without reason, DEFERRED idempotency, DEFERRED->PUBLISHED, invalid DEFERRED->ACCEPTED.
+- No API or database changes needed — DEFERRED status was already fully supported by the generic `updateStatus()` mechanism from US-048/US-049.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 309 passed (5 new DEFERRED tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- None.
+
+**Completion note**
+- All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; results recorded above.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

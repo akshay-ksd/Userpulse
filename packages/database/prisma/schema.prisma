@@ -60,9 +60,10 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members     OrganizationMember[]
-  invitations OrganizationInvitation[]
-  projects    Project[]
+  members          OrganizationMember[]
+  invitations      OrganizationInvitation[]
+  projects         Project[]
+  retentionSetting DataRetentionSetting?
 
   @@map("organizations")
 }
@@ -127,8 +128,14 @@ model Project {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
 
-  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  apiKeys      ProjectApiKey[]
+  organization         Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  apiKeys              ProjectApiKey[]
+  features             Feature[]
+  featureEventMappings FeatureEventMapping[]
+  funnels              Funnel[]
+  analysisRuns         AnalysisRun[]
+  recommendations      Recommendation[]
+  analysisSchedule     AnalysisSchedule?
 
   @@index([organizationId])
   @@map("projects")
@@ -150,4 +157,224 @@ model ProjectApiKey {
 
   @@index([projectId])
   @@map("project_api_keys")
+}
+
+enum FeatureStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model Feature {
+  id          String        @id @default(uuid())
+  projectId   String
+  name        String
+  description String?
+  status      FeatureStatus @default(ACTIVE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  mappings        FeatureEventMapping[]
+  recommendations Recommendation[]
+
+  @@index([projectId])
+  @@map("features")
+}
+
+model FeatureEventMapping {
+  id        String   @id @default(uuid())
+  featureId String
+  projectId String
+  eventName String
+  createdAt DateTime @default(now())
+
+  feature Feature @relation(fields: [featureId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, eventName])
+  @@index([featureId])
+  @@map("feature_event_mappings")
+}
+
+model Event {
+  id               String    @id @default(uuid())
+  organizationId   String
+  projectId        String
+  eventId          String
+  eventName        String
+  anonymousId      String?
+  userId           String?
+  properties       Json?
+  sdkVersion       String?
+  eventTimestamp   DateTime  @db.Timestamptz(6)
+  ingestedAt       DateTime  @default(now()) @db.Timestamptz(6)
+  processingStatus String    @default("PENDING")
+  retryCount       Int       @default(0)
+  processedAt      DateTime? @db.Timestamptz(6)
+  processingError  String?
+  validationStatus String    @default("VALID")
+  validationError  String?
+
+  @@index([projectId, ingestedAt])
+  @@index([processingStatus, ingestedAt])
+  @@index([processingStatus, retryCount])
+  @@unique([projectId, eventId])
+  @@index([projectId, validationStatus])
+  @@index([projectId, eventTimestamp])
+  @@map("events")
+}
+
+model Funnel {
+  id        String   @id @default(uuid())
+  projectId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  steps   FunnelStep[]
+
+  @@index([projectId])
+  @@map("funnels")
+}
+
+model AnalysisRun {
+  id              String    @id @default(uuid())
+  projectId       String
+  organizationId  String
+  requestedById   String
+  status          String    @default("QUEUED")
+  periodStart     DateTime  @db.Timestamptz(6)
+  periodEnd       DateTime  @db.Timestamptz(6)
+  eventCount      Int?
+  statusMessage   String?
+  startedAt       DateTime? @db.Timestamptz(6)
+  completedAt     DateTime? @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt
+
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  recommendations Recommendation[]
+
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
+  @@map("analysis_runs")
+}
+
+model Recommendation {
+  id                String    @id @default(uuid())
+  analysisRunId     String
+  projectId         String
+  organizationId    String
+  title             String
+  summary           String
+  suggestedAction   String
+  category          String
+  affectedFeatureId String?
+  affectedArea      String?
+  evidence          Json
+  confidence        Float?
+  impact            Float?
+  reach             Float?
+  priorityScore     Float?
+  periodStart       DateTime  @db.Timestamptz(6)
+  periodEnd         DateTime  @db.Timestamptz(6)
+  status            String    @default("PUBLISHED")
+  supersededById    String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime  @updatedAt
+
+  analysisRun  AnalysisRun     @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  project      Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  feature      Feature?        @relation(fields: [affectedFeatureId], references: [id], onDelete: SetNull)
+  supersededBy Recommendation? @relation("RecommendationSupersedes", fields: [supersededById], references: [id], onDelete: SetNull)
+  supersedes   Recommendation[] @relation("RecommendationSupersedes")
+  statusHistory RecommendationStatusHistory[]
+
+  @@index([projectId, status])
+  @@index([analysisRunId])
+  @@index([projectId, createdAt])
+  @@index([projectId, priorityScore(sort: Desc)])
+  @@map("recommendations")
+}
+
+model RecommendationStatusHistory {
+  id               String   @id @default(uuid())
+  recommendationId String
+  fromStatus       String
+  toStatus         String
+  changedBy        String
+  reason           String?
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  recommendation Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@index([recommendationId, createdAt])
+  @@map("recommendation_status_history")
+}
+
+model AnalysisSchedule {
+  id             String    @id @default(uuid())
+  projectId      String    @unique
+  organizationId String
+  intervalHours  Int
+  enabled        Boolean   @default(true)
+  lastRunAt      DateTime? @db.Timestamptz(6)
+  nextRunAt      DateTime  @db.Timestamptz(6)
+  createdBy      String
+  updatedBy      String
+  createdAt      DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextRunAt])
+  @@map("analysis_schedules")
+}
+
+model DataRetentionSetting {
+  id                 String       @id @default(uuid())
+  organizationId     String       @unique
+  eventRetentionDays Int          @default(90)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("data_retention_settings")
+}
+
+model DataDeletionRequest {
+  id              String    @id @default(uuid())
+  projectId       String
+  organizationId  String
+  requestedBy     String
+  status          String    @default("PENDING")
+  scope           Json
+  eventsDeleted   Int       @default(0)
+  recordsDeleted  Int       @default(0)
+  error           String?
+  confirmedAt     DateTime? @db.Timestamptz(6)
+  startedAt       DateTime? @db.Timestamptz(6)
+  completedAt     DateTime? @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt
+
+  @@index([projectId, status])
+  @@index([status, createdAt])
+  @@map("data_deletion_requests")
+}
+
+model FunnelStep {
+  id        String   @id @default(uuid())
+  funnelId  String
+  stepOrder Int
+  eventName String
+  createdAt DateTime @default(now())
+
+  funnel Funnel @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+
+  @@unique([funnelId, stepOrder])
+  @@index([funnelId])
+  @@map("funnel_steps")
 }

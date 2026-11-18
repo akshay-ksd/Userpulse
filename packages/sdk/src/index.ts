@@ -35,7 +35,58 @@ export function track(eventName: string, properties?: Record<string, unknown>): 
   currentClient.track(eventName, properties);
 }
 
+export function page(name?: string, properties?: Record<string, unknown>): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before page().');
+    return;
+  }
+  currentClient.page(name, properties);
+}
+
+export function identify(userId: string, traits?: Record<string, unknown>): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before identify().');
+    return;
+  }
+  currentClient.identify(userId, traits);
+}
+
+export function reset(): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before reset().');
+    return;
+  }
+  currentClient.reset();
+}
+
+export async function flush(): Promise<void> {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before flush().');
+    return;
+  }
+  await currentClient.flush();
+}
+
+export function destroy(): void {
+  if (!currentClient) {
+    return;
+  }
+  currentClient.destroy();
+  currentClient = null;
+}
+
+export function setTrackingEnabled(enabled: boolean): void {
+  if (!currentClient) {
+    console.warn('UserpulseSDK: Not initialized. Call init() before setTrackingEnabled().');
+    return;
+  }
+  currentClient.setTrackingEnabled(enabled);
+}
+
 /** @internal — reset module state for tests */
 export function _reset(): void {
+  if (currentClient) {
+    currentClient.destroy();
+  }
   currentClient = null;
 }

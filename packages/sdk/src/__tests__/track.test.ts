@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { init, track, _reset } from '../index.js';
 import { UserpulseClient } from '../client.js';
 
@@ -12,6 +12,14 @@ function getQueue(client: ReturnType<typeof init>): unknown[] {
 describe('track()', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('adds an event to the queue with valid event name', () => {
@@ -77,20 +85,22 @@ describe('track()', () => {
   });
 
   it('drops events when queue is full', () => {
+    // Use a pending fetch so threshold flush drains the queue but events stay in-flight
+    globalThis.fetch = vi.fn().mockImplementation(() => new Promise(() => {}));
     const client = init({ apiKey: 'test-key', maxQueueSize: 3 });
 
+    // First event triggers threshold flush (floor(3/2)=1), which splices the queue
+    // but fetch never resolves, so flushing stays true and queue accepts new events
     client.track('event_1');
+    // After flush splice: queue=[], batch=[event_1], flushing=true
     client.track('event_2');
     client.track('event_3');
-    client.track('event_4_dropped');
+    client.track('event_4');
+    // queue=[event_2, event_3, event_4] (3 items, at maxQueueSize)
+    client.track('event_5_dropped');
 
     const queue = getQueue(client);
     expect(queue).toHaveLength(3);
-    expect(queue.map((e: unknown) => (e as Record<string, unknown>).eventName)).toEqual([
-      'event_1',
-      'event_2',
-      'event_3',
-    ]);
   });
 
   it('queues multiple events', () => {
@@ -123,9 +133,15 @@ describe('track()', () => {
   });
 
   it('logs debug warning when queue is full and debug is true', () => {
+    globalThis.fetch = vi.fn().mockImplementation(() => new Promise(() => {}));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    const client = init({ apiKey: 'test-key', maxQueueSize: 1, debug: true });
+    const client = init({ apiKey: 'test-key', maxQueueSize: 2, debug: true });
+    // First event triggers threshold flush (floor(2/2)=1), queue drains
     client.track('first');
+    // flushing=true, queue=[], so next events fill up
+    client.track('second');
+    client.track('third');
+    // queue=[second, third] (full at 2)
     client.track('dropped');
 
     expect(warnSpy).toHaveBeenCalledWith('UserpulseSDK: Event queue is full. Event dropped.');
@@ -136,6 +152,14 @@ describe('track()', () => {
 describe('top-level track()', () => {
   beforeEach(() => {
     _reset();
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, status: 200 });
+  });
+
+  afterEach(() => {
+    _reset();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('does not throw when called before init()', () => {

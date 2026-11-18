@@ -12,6 +12,12 @@ export interface ProjectInfo {
   createdAt: Date;
 }
 
+export interface EventStatusInfo {
+  totalEvents: number;
+  latestEventAt: Date | null;
+  earliestEventAt: Date | null;
+}
+
 @Injectable()
 export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -131,6 +137,35 @@ export class ProjectsService {
       description: updated.description,
       status: updated.status,
       createdAt: updated.createdAt,
+    };
+  }
+
+  async getEventStatus(
+    orgId: string,
+    projectId: string,
+    userId: string,
+  ): Promise<EventStatusInfo> {
+    await this.verifyMembership(orgId, userId);
+
+    const project = await this.prisma.project.findFirst({
+      where: { id: projectId, organizationId: orgId },
+    });
+
+    if (!project) {
+      throw new NotFoundException();
+    }
+
+    const result = await this.prisma.event.aggregate({
+      where: { projectId, validationStatus: 'VALID' },
+      _count: true,
+      _max: { ingestedAt: true },
+      _min: { ingestedAt: true },
+    });
+
+    return {
+      totalEvents: result._count,
+      latestEventAt: result._max.ingestedAt,
+      earliestEventAt: result._min.ingestedAt,
     };
   }
 }

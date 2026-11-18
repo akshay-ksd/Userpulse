@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 6 |
+| Not Started | 5 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 50 |
-| Overall completion | 89% |
+| Done | 51 |
+| Overall completion | 91% |
 
 **Last updated:** 2026-11-18
 
@@ -162,7 +162,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-051 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-051 | Enforce tenant isolation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 331 tests pass |
 | US-052 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-053 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-054 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -2105,5 +2105,42 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All four acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; results recorded above.
+
+### US-051 — Enforce tenant isolation
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-18
+- **Last updated:** 2026-11-18
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-051-enforce-tenant-isolation.md`
+
+**Acceptance criteria**
+- [x] Every customer-facing data operation verifies organization and project access. — Audit confirmed all controllers verify membership before data access.
+- [x] Changing identifiers cannot bypass authorization. — Projects scoped to org; cross-org URL manipulation tests verify rejection.
+- [x] Analytics queries are scoped to authorized projects. — Analytics service checks membership per method before querying.
+- [x] Background analysis uses the correct tenant scope. — ScheduledAnalysisRunner and AnalysisRunProcessor use pre-validated DB records.
+- [x] Automated tests cover cross-tenant access attempts. — 22 new cross-tenant isolation tests across 8 services.
+- [x] Unauthorized requests do not reveal protected data. — 404 (not 403) returned; metrics endpoint now requires internal token.
+
+**Implementation notes**
+- Fix: Restricted `GET /internal/metrics/processing` with `@Public()` + `x-internal-token` header validation via `INTERNAL_METRICS_TOKEN` env var. Any unauthenticated request without the token gets 403.
+- Tests: New `tenant-isolation.spec.ts` with 22 tests covering cross-tenant rejection for ProjectsService, RecommendationsService, FunnelsService, FeaturesService, ApiKeysService, AnalysisRunsService, AnalysisScheduleService, EventProcessorController (metrics auth), cross-org URL manipulation, and 404-not-403 response verification.
+- Key files: `apps/api/src/event-processor/event-processor.controller.ts`, `apps/api/src/__tests__/tenant-isolation.spec.ts`
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 331 passed (22 new tenant isolation tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Role-based access control (only OWNER for destructive operations) is out of scope — currently all org members can perform all project operations.
+- AnalyticsService uses inline membership checks rather than a shared helper — functionally correct but a maintainability improvement for the future.
+
+**Completion note**
+- All six acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; results recorded above.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

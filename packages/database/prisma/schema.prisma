@@ -344,6 +344,27 @@ model DataRetentionSetting {
   @@map("data_retention_settings")
 }
 
+model DataDeletionRequest {
+  id              String    @id @default(uuid())
+  projectId       String
+  organizationId  String
+  requestedBy     String
+  status          String    @default("PENDING")
+  scope           Json
+  eventsDeleted   Int       @default(0)
+  recordsDeleted  Int       @default(0)
+  error           String?
+  confirmedAt     DateTime? @db.Timestamptz(6)
+  startedAt       DateTime? @db.Timestamptz(6)
+  completedAt     DateTime? @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime  @updatedAt
+
+  @@index([projectId, status])
+  @@index([status, createdAt])
+  @@map("data_deletion_requests")
+}
+
 model FunnelStep {
   id        String   @id @default(uuid())
   funnelId  String

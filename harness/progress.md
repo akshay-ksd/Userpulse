@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 3 |
+| Not Started | 2 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 53 |
-| Overall completion | 95% |
+| Done | 54 |
+| Overall completion | 96% |
 
 **Last updated:** 2026-11-18
 
@@ -165,7 +165,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-051 | Enforce tenant isolation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 331 tests pass |
 | US-052 | Protect tracking credentials | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 343 tests pass |
 | US-053 | Understand data retention | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 355 tests pass |
-| US-054 | Request project data deletion | Not Started | 0% | — | — | — | — |
+| US-054 | Request project data deletion | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 373 tests pass |
 | US-055 | Monitor platform health | Not Started | 0% | — | — | — | — |
 | US-056 | Inspect an analysis run | Not Started | 0% | — | — | — | — |
 
@@ -2214,5 +2214,47 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; e2e tests written but require PostgreSQL.
+
+### US-054 — Request project data deletion
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-18
+- **Last updated:** 2026-11-18
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-054-request-project-data-deletion.md`
+
+**Acceptance criteria**
+- [x] An authorized owner can request deletion. — `POST /organizations/:orgId/projects/:projectId/data-deletion` (201), OWNER only.
+- [x] Scope and consequences are explained before confirmation. — Response includes `scope` (record counts) and `consequences` text with backup-retention exception.
+- [x] The request is recorded and its status is visible. — `DataDeletionRequest` model with status tracking; `GET .../data-deletion` lists requests; `GET .../data-deletion/:id` returns single request.
+- [x] Applicable data is removed from relevant stores, queues, and artifacts according to policy. — Background processor deletes events, recommendations, analysis runs, funnels, features, feature mappings, API keys, analysis schedules in FK-safe order.
+- [x] Completion or failure is recorded. — Request status transitions: PENDING → CONFIRMED → PROCESSING → COMPLETED/FAILED with timestamps and counts.
+- [x] Backup-retention exceptions are documented. — Consequences text includes: "data may persist in database backups according to the infrastructure backup retention policy."
+
+**Implementation notes**
+- Database: `DataDeletionRequest` model. Migration `20261118200000_add_data_deletion_requests`.
+- API: `DataDeletionModule` with `DataDeletionService`, `DataDeletionController`, `DataDeletionProcessorService`, `DataDeletionMetricsController`.
+- Two-step flow: create (PENDING with scope) → confirm (CONFIRMED) → background processor (PROCESSING → COMPLETED/FAILED).
+- Endpoints: POST create (201), POST confirm (200), GET list (200), GET single (200), DELETE cancel (204), GET metrics (public).
+- Background processor: `@Interval(10000)` polls for CONFIRMED requests, deletes data in FK-safe order, archives project.
+- Key files: `apps/api/src/data-deletion/` (all new), `packages/database/prisma/schema.prisma`, `apps/api/src/app.module.ts`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 373 passed (18 new: 13 service + 5 processor).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment.
+- ClickHouse/S3 data deletion deferred (MVP uses PostgreSQL only).
+- Web UI for deletion requests not implemented (API-only for now).
+- Project record preserved (archived) after data deletion for auditability.
+
+**Completion note**
+- All six acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

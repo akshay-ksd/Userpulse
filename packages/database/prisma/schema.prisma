@@ -60,9 +60,10 @@ model Organization {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  members     OrganizationMember[]
-  invitations OrganizationInvitation[]
-  projects    Project[]
+  members          OrganizationMember[]
+  invitations      OrganizationInvitation[]
+  projects         Project[]
+  retentionSetting DataRetentionSetting?
 
   @@map("organizations")
 }
@@ -329,6 +330,18 @@ model AnalysisSchedule {
 
   @@index([enabled, nextRunAt])
   @@map("analysis_schedules")
+}
+
+model DataRetentionSetting {
+  id                 String       @id @default(uuid())
+  organizationId     String       @unique
+  eventRetentionDays Int          @default(90)
+  createdAt          DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt          DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@map("data_retention_settings")
 }
 
 model FunnelStep {

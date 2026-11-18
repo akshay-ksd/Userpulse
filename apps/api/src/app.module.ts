@@ -17,6 +17,7 @@ import { AnalysisRunsModule } from './analysis-runs/analysis-runs.module.js';
 import { RecommendationsModule } from './recommendations/recommendations.module.js';
 import { RetentionModule } from './retention/retention.module.js';
 import { DataDeletionModule } from './data-deletion/data-deletion.module.js';
+import { HealthModule } from './health/health.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
@@ -46,6 +47,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
     RecommendationsModule,
     RetentionModule,
     DataDeletionModule,
+    HealthModule,
   ],
   controllers: [AppController, MeController],
   providers: [AppService],

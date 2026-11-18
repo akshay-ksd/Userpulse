@@ -288,12 +288,28 @@ model Recommendation {
   feature      Feature?        @relation(fields: [affectedFeatureId], references: [id], onDelete: SetNull)
   supersededBy Recommendation? @relation("RecommendationSupersedes", fields: [supersededById], references: [id], onDelete: SetNull)
   supersedes   Recommendation[] @relation("RecommendationSupersedes")
+  statusHistory RecommendationStatusHistory[]
 
   @@index([projectId, status])
   @@index([analysisRunId])
   @@index([projectId, createdAt])
   @@index([projectId, priorityScore(sort: Desc)])
   @@map("recommendations")
+}
+
+model RecommendationStatusHistory {
+  id               String   @id @default(uuid())
+  recommendationId String
+  fromStatus       String
+  toStatus         String
+  changedBy        String
+  reason           String?
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  recommendation Recommendation @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@index([recommendationId, createdAt])
+  @@map("recommendation_status_history")
 }
 
 model AnalysisSchedule {

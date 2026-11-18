@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 9 |
+| Not Started | 8 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 47 |
-| Overall completion | 84% |
+| Done | 48 |
+| Overall completion | 86% |
 
 **Last updated:** 2026-11-18
 
@@ -154,7 +154,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
 | US-047 | View recommendations | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 296 tests pass |
-| US-048 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-048 | Accept a recommendation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 301 tests pass |
 | US-049 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-050 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
@@ -1998,5 +1998,43 @@ A story may be marked **Done** only when:
 **Blockers / follow-up**
 - Status values ACCEPTED, REJECTED, DEFERRED don't exist yet (all recs are PUBLISHED). Filter and UI support them in advance of US-048–050.
 - No pagination for the recommendations list (same as current behavior).
+
+### US-048 — Accept a recommendation
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-18
+- **Last updated:** 2026-11-18
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-048-accept-recommendation.md`
+
+**Acceptance criteria**
+- [x] An authorized user can accept a recommendation. — `PATCH .../recommendations/:id/status` with `{ status: 'ACCEPTED' }`.
+- [x] The status is persisted. — `recommendation.status` updated in a transaction.
+- [x] User and timestamp are recorded. — `RecommendationStatusHistory` entry with `changedBy`, `fromStatus`, `toStatus`, `createdAt`.
+- [x] List and detail views reflect the new status. — Status badge updates immediately on the detail page; list page already has status filter from US-047.
+- [x] Repeated requests do not create duplicate history entries. — If already ACCEPTED, returns current recommendation without creating history.
+
+**Implementation notes**
+- Database: Added `RecommendationStatusHistory` model with `id`, `recommendationId`, `fromStatus`, `toStatus`, `changedBy`, `reason`, `createdAt`. Migration `20261118040000_add_recommendation_status_history`. Added `statusHistory` relation to `Recommendation`.
+- API: Added `updateStatus()` to `RecommendationsService` — verifies project access, checks idempotency, validates transitions via `ALLOWED_TRANSITIONS` map, uses `$transaction` to atomically update status and create history entry.
+- API: Added `PATCH :recommendationId/status` to `RecommendationsController` with Zod validation for `{ status, reason? }`.
+- Web: Added `handleStatusChange` function and "Accept" button to recommendation detail page. Button visible only when `status === 'PUBLISHED'`. Shows loading state and error handling.
+- Transition rules: PUBLISHED → ACCEPTED/REJECTED/DEFERRED; ACCEPTED/REJECTED/DEFERRED → PUBLISHED (revert). Invalid transitions return 400.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 301 passed (5 new updateStatus tests: happy path, idempotency, invalid transition, not found, non-member).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- E2e tests require PostgreSQL; not available in this cloud environment.
+- Reject (US-049) and defer (US-050) will reuse the same endpoint and history model — just different status values and optional reason.
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; results recorded above.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

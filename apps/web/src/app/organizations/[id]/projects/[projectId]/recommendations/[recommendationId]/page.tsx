@@ -248,6 +248,39 @@ function RecommendationDetailContent() {
   const projectId = params.projectId as string;
   const recommendationId = params.recommendationId as string;
   const [state, setState] = useState<State>({ status: 'loading' });
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function handleStatusChange(newStatus: string) {
+    setActionLoading(true);
+    setActionError(null);
+    try {
+      const res = await fetch(
+        `${API_URL}/organizations/${orgId}/projects/${projectId}/recommendations/${recommendationId}/status`,
+        {
+          method: 'PATCH',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: newStatus }),
+        },
+      );
+      if (res.status === 401) {
+        router.push('/login');
+        return;
+      }
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+        setActionError((data.message as string) ?? 'Failed to update status.');
+        return;
+      }
+      const updated = (await res.json()) as RecommendationDetail;
+      setState({ status: 'ready', rec: updated });
+    } catch {
+      setActionError('Network error. Please try again.');
+    } finally {
+      setActionLoading(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -411,6 +444,30 @@ function RecommendationDetailContent() {
         </h2>
         <p className="text-sm text-amber-900 dark:text-amber-100">{rec.suggestedAction}</p>
       </div>
+
+      {rec.status === 'PUBLISHED' && (
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-3">
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={() => handleStatusChange('ACCEPTED')}
+              className="rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50 dark:bg-green-700 dark:hover:bg-green-600"
+            >
+              {actionLoading ? 'Updating…' : 'Accept'}
+            </button>
+          </div>
+          {actionError && <p className="text-sm text-red-600 dark:text-red-400">{actionError}</p>}
+        </div>
+      )}
+
+      {rec.status !== 'PUBLISHED' && (
+        <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
+            Status: <strong>{rec.status}</strong> — This recommendation has been reviewed.
+          </p>
+        </div>
+      )}
 
       {rec.supersededById && (
         <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 dark:border-zinc-700 dark:bg-zinc-900">

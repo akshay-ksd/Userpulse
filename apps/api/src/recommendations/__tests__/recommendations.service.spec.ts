@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { RecommendationsService } from '../recommendations.service.js';
 
 function makePrisma() {
@@ -13,10 +13,15 @@ function makePrisma() {
     recommendation: {
       findMany: vi.fn(),
       findFirst: vi.fn(),
+      update: vi.fn(),
+    },
+    recommendationStatusHistory: {
+      create: vi.fn(),
     },
     analysisRun: {
       findFirst: vi.fn(),
     },
+    $transaction: vi.fn(),
   };
 }
 
@@ -171,6 +176,70 @@ describe('RecommendationsService', () => {
       prisma.organizationMember.findUnique.mockResolvedValue(null);
       await expect(
         service.findByAnalysisRun(orgId, projectId, 'run-1', userId),
+      ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('updateStatus', () => {
+    const recId = 'rec-1';
+
+    it('transitions PUBLISHED to ACCEPTED', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'PUBLISHED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+      const updated = { ...rec, status: 'ACCEPTED' };
+      prisma.$transaction.mockResolvedValue([updated, {}]);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'ACCEPTED',
+      );
+      expect(result).toEqual(updated);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns recommendation unchanged when already at target status (idempotent)', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'ACCEPTED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'ACCEPTED',
+      );
+      expect(result).toEqual(rec);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException for invalid transition', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'REJECTED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+
+      await expect(
+        service.updateStatus(orgId, projectId, recId, userId, 'ACCEPTED'),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws NotFoundException when recommendation not found', async () => {
+      setupAccess();
+      prisma.recommendation.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.updateStatus(orgId, projectId, recId, userId, 'ACCEPTED'),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws NotFoundException for non-member', async () => {
+      prisma.organizationMember.findUnique.mockResolvedValue(null);
+      await expect(
+        service.updateStatus(orgId, projectId, recId, userId, 'ACCEPTED'),
       ).rejects.toThrow(NotFoundException);
     });
   });

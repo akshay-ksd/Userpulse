@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface RecommendationInfo {
@@ -98,6 +102,62 @@ export class RecommendationsService {
     }
 
     return rec;
+  }
+
+  private static readonly ALLOWED_TRANSITIONS: Record<string, string[]> = {
+    PUBLISHED: ['ACCEPTED', 'REJECTED', 'DEFERRED'],
+    ACCEPTED: ['PUBLISHED'],
+    REJECTED: ['PUBLISHED'],
+    DEFERRED: ['PUBLISHED'],
+  };
+
+  async updateStatus(
+    orgId: string,
+    projectId: string,
+    recommendationId: string,
+    userId: string,
+    newStatus: string,
+    reason?: string,
+  ): Promise<RecommendationInfo> {
+    await this.verifyProjectAccess(orgId, projectId, userId);
+
+    const rec = await this.prisma.recommendation.findFirst({
+      where: { id: recommendationId, projectId },
+    });
+
+    if (!rec) {
+      throw new NotFoundException();
+    }
+
+    if (rec.status === newStatus) {
+      return rec;
+    }
+
+    const allowed =
+      RecommendationsService.ALLOWED_TRANSITIONS[rec.status] ?? [];
+    if (!allowed.includes(newStatus)) {
+      throw new BadRequestException(
+        `Cannot transition from ${rec.status} to ${newStatus}`,
+      );
+    }
+
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.recommendation.update({
+        where: { id: recommendationId },
+        data: { status: newStatus },
+      }),
+      this.prisma.recommendationStatusHistory.create({
+        data: {
+          recommendationId,
+          fromStatus: rec.status,
+          toStatus: newStatus,
+          changedBy: userId,
+          reason: reason ?? null,
+        },
+      }),
+    ]);
+
+    return updated;
   }
 
   async findByAnalysisRun(

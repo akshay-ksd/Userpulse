@@ -242,5 +242,60 @@ describe('RecommendationsService', () => {
         service.updateStatus(orgId, projectId, recId, userId, 'ACCEPTED'),
       ).rejects.toThrow(NotFoundException);
     });
+
+    it('transitions PUBLISHED to REJECTED with reason', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'PUBLISHED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+      const updated = { ...rec, status: 'REJECTED' };
+      prisma.$transaction.mockResolvedValue([updated, {}]);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'REJECTED',
+        'Not relevant to our product direction',
+      );
+      expect(result).toEqual(updated);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+      const txArgs = prisma.$transaction.mock.calls[0][0];
+      expect(txArgs).toHaveLength(2);
+    });
+
+    it('transitions PUBLISHED to REJECTED without reason', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'PUBLISHED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+      const updated = { ...rec, status: 'REJECTED' };
+      prisma.$transaction.mockResolvedValue([updated, {}]);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'REJECTED',
+      );
+      expect(result).toEqual(updated);
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns recommendation unchanged when already REJECTED (idempotent)', async () => {
+      setupAccess();
+      const rec = { id: recId, projectId, status: 'REJECTED' };
+      prisma.recommendation.findFirst.mockResolvedValue(rec);
+
+      const result = await service.updateStatus(
+        orgId,
+        projectId,
+        recId,
+        userId,
+        'REJECTED',
+      );
+      expect(result).toEqual(rec);
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    });
   });
 });

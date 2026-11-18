@@ -250,8 +250,10 @@ function RecommendationDetailContent() {
   const [state, setState] = useState<State>({ status: 'loading' });
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [showRejectForm, setShowRejectForm] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
 
-  async function handleStatusChange(newStatus: string) {
+  async function handleStatusChange(newStatus: string, reason?: string) {
     setActionLoading(true);
     setActionError(null);
     try {
@@ -261,7 +263,7 @@ function RecommendationDetailContent() {
           method: 'PATCH',
           credentials: 'include',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: newStatus }),
+          body: JSON.stringify({ status: newStatus, ...(reason ? { reason } : {}) }),
         },
       );
       if (res.status === 401) {
@@ -275,6 +277,8 @@ function RecommendationDetailContent() {
       }
       const updated = (await res.json()) as RecommendationDetail;
       setState({ status: 'ready', rec: updated });
+      setShowRejectForm(false);
+      setRejectReason('');
     } catch {
       setActionError('Network error. Please try again.');
     } finally {
@@ -456,7 +460,55 @@ function RecommendationDetailContent() {
             >
               {actionLoading ? 'Updating…' : 'Accept'}
             </button>
+            <button
+              type="button"
+              disabled={actionLoading}
+              onClick={() => setShowRejectForm(!showRejectForm)}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 dark:bg-red-700 dark:hover:bg-red-600"
+            >
+              Reject
+            </button>
           </div>
+          {showRejectForm && (
+            <div className="flex flex-col gap-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-950">
+              <label
+                htmlFor="reject-reason"
+                className="text-sm font-medium text-red-800 dark:text-red-200"
+              >
+                Reason for rejection (optional)
+              </label>
+              <textarea
+                id="reject-reason"
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                maxLength={1000}
+                rows={3}
+                placeholder="Why is this recommendation not relevant?"
+                className="rounded-md border border-red-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500 dark:border-red-700 dark:bg-zinc-900 dark:text-zinc-100 dark:placeholder:text-zinc-500"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => handleStatusChange('REJECTED', rejectReason.trim() || undefined)}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50 dark:bg-red-700 dark:hover:bg-red-600"
+                >
+                  {actionLoading ? 'Rejecting…' : 'Confirm rejection'}
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => {
+                    setShowRejectForm(false);
+                    setRejectReason('');
+                  }}
+                  className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
           {actionError && <p className="text-sm text-red-600 dark:text-red-400">{actionError}</p>}
         </div>
       )}

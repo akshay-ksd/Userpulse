@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 8 |
+| Not Started | 7 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 48 |
-| Overall completion | 86% |
+| Done | 49 |
+| Overall completion | 88% |
 
 **Last updated:** 2026-11-18
 
@@ -155,7 +155,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 |---|---|---|---:|---|---|---|---|
 | US-047 | View recommendations | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 296 tests pass |
 | US-048 | Accept a recommendation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 301 tests pass |
-| US-049 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-049 | Reject a recommendation | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 304 tests pass |
 | US-050 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 
 ### EP-11 Privacy, Security, Operations
@@ -2033,6 +2033,41 @@ A story may be marked **Done** only when:
 **Blockers / follow-up**
 - E2e tests require PostgreSQL; not available in this cloud environment.
 - Reject (US-049) and defer (US-050) will reuse the same endpoint and history model — just different status values and optional reason.
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; results recorded above.
+
+### US-049 — Reject a recommendation
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-18
+- **Last updated:** 2026-11-18
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-049-reject-recommendation.md`
+
+**Acceptance criteria**
+- [x] An authorized user can reject a recommendation. — "Reject" button on detail page calls `PATCH .../status` with `{ status: 'REJECTED' }`.
+- [x] A rejection reason can be recorded. — Optional textarea shown after clicking "Reject"; reason sent in request body.
+- [x] Status and decision timestamp are persisted. — Existing `updateStatus` persists status; `RecommendationStatusHistory.createdAt` records timestamp.
+- [x] The action is recorded in status history. — `RecommendationStatusHistory` entry created with `fromStatus`, `toStatus`, `changedBy`, and `reason`.
+- [x] Rejected items are distinguishable from active recommendations. — Red status badge (`REJECTED`) in both list and detail views; status info panel shows "This recommendation has been reviewed."
+
+**Implementation notes**
+- API: No changes needed — existing `PATCH :recommendationId/status` endpoint and `RecommendationsService.updateStatus()` already handle PUBLISHED → REJECTED with optional reason.
+- Web: Added "Reject" button alongside "Accept" on recommendation detail page. Clicking "Reject" toggles a rejection form with optional reason textarea and "Confirm rejection" / "Cancel" buttons. Updated `handleStatusChange` to accept optional `reason` parameter.
+- Tests: Added 3 new unit tests for REJECTED flow: with reason, without reason, and idempotency.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 304 passed (3 new rejection tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- None.
 
 **Completion note**
 - All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18; results recorded above.

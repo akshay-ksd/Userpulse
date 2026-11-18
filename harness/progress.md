@@ -41,15 +41,15 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 10 |
+| Not Started | 9 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 46 |
-| Overall completion | 82% |
+| Done | 47 |
+| Overall completion | 84% |
 
-**Last updated:** 2026-11-17
+**Last updated:** 2026-11-18
 
 > Update the counts above whenever any story status or completion percentage changes. Overall completion is `sum of story progress percentages / 56`, rounded to the nearest whole percent, unless the team adopts a different documented weighting method.
 
@@ -153,7 +153,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 
 | Story ID | Story title | Status | Progress | Owner / Agent | Started | Updated | Blocker / Next action |
 |---|---|---|---:|---|---|---|---|
-| US-047 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
+| US-047 | View recommendations | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 296 tests pass |
 | US-048 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-049 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
 | US-050 | Copy from `user-stories.md` | Not Started | 0% | — | — | — | — |
@@ -1976,5 +1976,27 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All five acceptance criteria verified by automated unit tests and build checks on 2026-11-17; results recorded above.
+
+### US-047 — View recommendations
+
+**Status:** Done — 2026-11-18
+
+**Implementation notes**
+- API: Added optional `status` query parameter to `GET /organizations/:orgId/projects/:projectId/recommendations`. Valid statuses: `PUBLISHED`, `ACCEPTED`, `REJECTED`, `DEFERRED`. Invalid values silently ignored (returns all).
+- API: Removed hardcoded `status: 'PUBLISHED'` filter from `findByProject`; now returns all recommendations by default.
+- Web: Added status filter button group (All, Published, Accepted, Rejected, Deferred) to `RecommendationsSection` on project page.
+- Web: Added status badge and creation date to recommendation list items. Titles are now `<Link>` to detail page.
+- Web: Created dedicated recommendation detail page at `/organizations/[id]/projects/[projectId]/recommendations/[recommendationId]` with full evidence display, priority scores, suggested action, status/category badges, and loading/error/not-found states.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 296 passed (2 new status filter tests).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- Status values ACCEPTED, REJECTED, DEFERRED don't exist yet (all recs are PUBLISHED). Filter and UI support them in advance of US-048–050.
+- No pagination for the recommendations list (same as current behavior).
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

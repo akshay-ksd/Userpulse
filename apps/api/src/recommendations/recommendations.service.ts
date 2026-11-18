@@ -52,15 +52,28 @@ export class RecommendationsService {
     }
   }
 
+  private static readonly VALID_STATUSES = [
+    'PUBLISHED',
+    'ACCEPTED',
+    'REJECTED',
+    'DEFERRED',
+  ];
+
   async findByProject(
     orgId: string,
     projectId: string,
     userId: string,
+    status?: string,
   ): Promise<RecommendationInfo[]> {
     await this.verifyProjectAccess(orgId, projectId, userId);
 
+    const where: { projectId: string; status?: string } = { projectId };
+    if (status && RecommendationsService.VALID_STATUSES.includes(status)) {
+      where.status = status;
+    }
+
     return this.prisma.recommendation.findMany({
-      where: { projectId, status: 'PUBLISHED' },
+      where,
       orderBy: [
         { priorityScore: { sort: 'desc', nulls: 'last' } },
         { createdAt: 'desc' },

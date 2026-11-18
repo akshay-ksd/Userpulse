@@ -42,15 +42,53 @@ describe('RecommendationsService', () => {
   }
 
   describe('findByProject', () => {
-    it('returns published recommendations', async () => {
+    it('returns all recommendations when no status filter', async () => {
       setupAccess();
-      const recs = [{ id: 'rec-1', title: 'Test', status: 'PUBLISHED' }];
+      const recs = [
+        { id: 'rec-1', title: 'Test', status: 'PUBLISHED' },
+        { id: 'rec-2', title: 'Accepted', status: 'ACCEPTED' },
+      ];
       prisma.recommendation.findMany.mockResolvedValue(recs);
 
       const result = await service.findByProject(orgId, projectId, userId);
       expect(result).toEqual(recs);
       expect(prisma.recommendation.findMany).toHaveBeenCalledWith({
+        where: { projectId },
+        orderBy: [
+          { priorityScore: { sort: 'desc', nulls: 'last' } },
+          { createdAt: 'desc' },
+        ],
+      });
+    });
+
+    it('filters by status when provided', async () => {
+      setupAccess();
+      const recs = [{ id: 'rec-1', title: 'Test', status: 'PUBLISHED' }];
+      prisma.recommendation.findMany.mockResolvedValue(recs);
+
+      const result = await service.findByProject(
+        orgId,
+        projectId,
+        userId,
+        'PUBLISHED',
+      );
+      expect(result).toEqual(recs);
+      expect(prisma.recommendation.findMany).toHaveBeenCalledWith({
         where: { projectId, status: 'PUBLISHED' },
+        orderBy: [
+          { priorityScore: { sort: 'desc', nulls: 'last' } },
+          { createdAt: 'desc' },
+        ],
+      });
+    });
+
+    it('ignores invalid status filter', async () => {
+      setupAccess();
+      prisma.recommendation.findMany.mockResolvedValue([]);
+
+      await service.findByProject(orgId, projectId, userId, 'INVALID');
+      expect(prisma.recommendation.findMany).toHaveBeenCalledWith({
+        where: { projectId },
         orderBy: [
           { priorityScore: { sort: 'desc', nulls: 'last' } },
           { createdAt: 'desc' },

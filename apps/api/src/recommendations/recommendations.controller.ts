@@ -1,4 +1,4 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { CurrentUser } from '@nestjs/authentication';
 import { RecommendationsService } from './recommendations.service.js';
 
@@ -13,8 +13,14 @@ export class RecommendationsController {
     @Param('orgId') orgId: string,
     @Param('projectId') projectId: string,
     @CurrentUser() user: { id: string },
+    @Query('status') status?: string,
   ) {
-    return this.recommendationsService.findByProject(orgId, projectId, user.id);
+    return this.recommendationsService.findByProject(
+      orgId,
+      projectId,
+      user.id,
+      status,
+    );
   }
 
   @Get(':recommendationId')

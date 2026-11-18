@@ -3516,44 +3516,74 @@ function PriorityScoreDisplay({ rec }: { rec: RecommendationData }) {
   );
 }
 
+const recStatusColors: Record<string, string> = {
+  PUBLISHED: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+  ACCEPTED: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+  REJECTED: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+  DEFERRED: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+};
+
+const STATUS_FILTERS = ['ALL', 'PUBLISHED', 'ACCEPTED', 'REJECTED', 'DEFERRED'] as const;
+
 function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId: string }) {
   const [recommendations, setRecommendations] = useState<RecommendationData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
   useEffect(() => {
     let cancelled = false;
 
-    fetch(`${API_URL}/organizations/${orgId}/projects/${projectId}/recommendations`, {
-      credentials: 'include',
-    })
-      .then(async (res) => {
+    async function load() {
+      setLoading(true);
+      setError('');
+      try {
+        const url =
+          statusFilter === 'ALL'
+            ? `${API_URL}/organizations/${orgId}/projects/${projectId}/recommendations`
+            : `${API_URL}/organizations/${orgId}/projects/${projectId}/recommendations?status=${statusFilter}`;
+        const res = await fetch(url, { credentials: 'include' });
         if (cancelled) return;
         if (!res.ok) {
           setError('Failed to load recommendations.');
-          setLoading(false);
           return;
         }
         const data = await res.json();
         setRecommendations(data);
-        setLoading(false);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError('Failed to load recommendations.');
-          setLoading(false);
-        }
-      });
+      } catch {
+        if (!cancelled) setError('Failed to load recommendations.');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
 
+    void load();
     return () => {
       cancelled = true;
     };
-  }, [orgId, projectId]);
+  }, [orgId, projectId, statusFilter]);
 
   return (
     <section>
-      <h2 className="mb-4 text-lg font-semibold text-zinc-900 dark:text-white">Recommendations</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-white">Recommendations</h2>
+        <div className="flex gap-1">
+          {STATUS_FILTERS.map((s) => (
+            <button
+              key={s}
+              onClick={() => setStatusFilter(s)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                statusFilter === s
+                  ? 'bg-black text-white dark:bg-zinc-50 dark:text-black'
+                  : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800'
+              }`}
+            >
+              {s === 'ALL' ? 'All' : s.charAt(0) + s.slice(1).toLowerCase()}
+            </button>
+          ))}
+        </div>
+      </div>
 
       {loading && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading recommendations…</p>
@@ -3563,7 +3593,9 @@ function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId
 
       {!loading && !error && recommendations.length === 0 && (
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          No recommendations yet. Request an analysis to generate insights.
+          {statusFilter === 'ALL'
+            ? 'No recommendations yet. Request an analysis to generate insights.'
+            : `No ${statusFilter.toLowerCase()} recommendations.`}
         </p>
       )}
 
@@ -3586,6 +3618,11 @@ function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId
                     >
                       {rec.category}
                     </span>
+                    <span
+                      className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${recStatusColors[rec.status] ?? recStatusColors.PUBLISHED}`}
+                    >
+                      {rec.status}
+                    </span>
                     <PriorityScoreDisplay rec={rec} />
                     {rec.affectedArea && (
                       <span className="text-xs text-zinc-500 dark:text-zinc-400">
@@ -3593,15 +3630,31 @@ function RecommendationsSection({ orgId, projectId }: { orgId: string; projectId
                       </span>
                     )}
                   </div>
-                  <h3 className="font-medium text-zinc-900 dark:text-white">{rec.title}</h3>
+                  <Link
+                    href={`/organizations/${orgId}/projects/${projectId}/recommendations/${rec.id}`}
+                    className="font-medium text-zinc-900 hover:underline dark:text-white"
+                  >
+                    {rec.title}
+                  </Link>
+                  <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
+                    {new Date(rec.createdAt).toLocaleDateString()}
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
-                  className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-                >
-                  {expandedId === rec.id ? 'Collapse' : 'Details'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/organizations/${orgId}/projects/${projectId}/recommendations/${rec.id}`}
+                    className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  >
+                    View
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => setExpandedId(expandedId === rec.id ? null : rec.id)}
+                    className="text-xs text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
+                  >
+                    {expandedId === rec.id ? 'Collapse' : 'Details'}
+                  </button>
+                </div>
               </div>
 
               <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{rec.summary}</p>

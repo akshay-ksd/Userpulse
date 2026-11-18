@@ -21,6 +21,18 @@ export interface AnalysisRunInfo {
   createdAt: Date;
 }
 
+export interface AnalysisRunRecommendationSummary {
+  id: string;
+  title: string;
+  status: string;
+  priorityScore: number | null;
+}
+
+export interface AnalysisRunDetail extends AnalysisRunInfo {
+  recommendationCount: number;
+  recommendations: AnalysisRunRecommendationSummary[];
+}
+
 @Injectable()
 export class AnalysisRunsService {
   constructor(private readonly prisma: PrismaService) {}
@@ -100,17 +112,28 @@ export class AnalysisRunsService {
     projectId: string,
     runId: string,
     userId: string,
-  ): Promise<AnalysisRunInfo> {
+  ): Promise<AnalysisRunDetail> {
     await this.verifyProjectAccess(orgId, projectId, userId);
 
     const run = await this.prisma.analysisRun.findFirst({
       where: { id: runId, projectId },
+      include: {
+        _count: { select: { recommendations: true } },
+        recommendations: {
+          select: { id: true, title: true, status: true, priorityScore: true },
+          orderBy: { priorityScore: 'desc' },
+        },
+      },
     });
 
     if (!run) {
       throw new NotFoundException();
     }
 
-    return run;
+    const { _count, ...rest } = run;
+    return {
+      ...rest,
+      recommendationCount: _count.recommendations,
+    };
   }
 }

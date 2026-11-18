@@ -41,13 +41,13 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | Metric | Count |
 |---|---:|
 | Total stories | 56 |
-| Not Started | 1 |
+| Not Started | 0 |
 | In Progress | 0 |
 | Testing | 0 |
 | In Review | 0 |
 | Blocked | 0 |
-| Done | 55 |
-| Overall completion | 98% |
+| Done | 56 |
+| Overall completion | 100% |
 
 **Last updated:** 2026-11-18
 
@@ -167,7 +167,7 @@ Update this file whenever work on a user story starts, changes status, is blocke
 | US-053 | Understand data retention | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 355 tests pass |
 | US-054 | Request project data deletion | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 373 tests pass |
 | US-055 | Monitor platform health | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 399 tests pass |
-| US-056 | Inspect an analysis run | Not Started | 0% | — | — | — | — |
+| US-056 | Inspect an analysis run | Done | 100% | Claude Code agent | 2026-11-18 | 2026-11-18 | All acceptance criteria met; 400 tests pass |
 
 ## Story implementation notes
 
@@ -2299,5 +2299,42 @@ A story may be marked **Done** only when:
 
 **Completion note**
 - All seven acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18.
+
+### US-056 — Inspect an analysis run
+
+- **Status:** Done
+- **Progress:** 100%
+- **Owner / Agent:** Claude Code agent
+- **Started:** 2026-11-18
+- **Last updated:** 2026-11-18
+- **Related branch / PR:** `ccr-4658ece0-0lvbdd`
+- **Task brief:** `harness/tasks/US-056-inspect-analysis-run.md`
+
+**Acceptance criteria**
+- [x] Each run has a stable identifier. — UUID `id` field on `AnalysisRun` model, displayed in full on the detail page.
+- [x] Project scope, requested period, status, and timestamps are recorded. — All fields (`projectId`, `periodStart`, `periodEnd`, `status`, `createdAt`, `startedAt`, `completedAt`) displayed on the detail page.
+- [x] Failure details are available to authorized operators. — `statusMessage` (which includes failure reasons) exposed in `findOne` and displayed prominently on the detail page with failure-specific styling.
+- [x] Recommendations can be linked to the run that generated them. — `findOne` now returns `recommendationCount` and `recommendations` list; detail page shows linked recommendations with title, status, and priority.
+- [x] Retries do not erase prior run history. — Each `requestAnalysis` creates a new row; existing runs are never overwritten.
+
+**Implementation notes**
+- API: Enriched `findOne` in `AnalysisRunsService` to include `_count.recommendations` and recommendation summaries (id, title, status, priorityScore) ordered by priority. New `AnalysisRunDetail` and `AnalysisRunRecommendationSummary` interfaces.
+- Web: Created dedicated analysis run detail page at `apps/web/src/app/organizations/[id]/projects/[projectId]/analysis-runs/[runId]/page.tsx` with full run inspection: stable ID, status badge, period, timestamps, event count, recommendation count, failure details with contextual styling, and linked recommendation list.
+- Web: Updated project page to make analysis run items clickable `<Link>` elements to the new detail page.
+- No database migration needed — all fields already existed.
+- Key files: `apps/api/src/analysis-runs/analysis-runs.service.ts`, `apps/api/src/analysis-runs/analysis-runs.controller.ts`, `apps/api/src/analysis-runs/analysis-runs.service.spec.ts`, `apps/web/src/app/organizations/[id]/projects/[projectId]/analysis-runs/[runId]/page.tsx`, `apps/web/src/app/organizations/[id]/projects/[projectId]/page.tsx`.
+
+**Verification**
+- [x] Unit tests: `pnpm --filter api test` — 400 passed (1 new enriched findOne test + 1 new failed run test replacing original findOne test).
+- [x] Lint: `pnpm lint` — pass (pre-existing warnings only).
+- [x] Typecheck: `pnpm typecheck` — pass.
+- [x] Build: `pnpm build` — pass.
+- [x] Format: `pnpm format:check` — pass.
+
+**Blockers / follow-up**
+- None. This is the final story (56/56).
+
+**Completion note**
+- All five acceptance criteria implemented and verified by automated unit tests and build checks on 2026-11-18.
 
 **Important:** This tracker records development progress; it does not replace `user-stories.md`, code review, test reports, or release sign-off.

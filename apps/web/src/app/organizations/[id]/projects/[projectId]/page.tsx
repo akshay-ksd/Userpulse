@@ -3791,9 +3791,10 @@ function AnalysisRunsSection({ orgId, projectId }: { orgId: string; projectId: s
       {!loading && runs.length > 0 && (
         <div className="flex flex-col gap-3">
           {runs.map((run) => (
-            <div
+            <Link
               key={run.id}
-              className="rounded-lg border border-black/[.08] px-4 py-3 dark:border-white/[.08]"
+              href={`/organizations/${orgId}/projects/${projectId}/analysis-runs/${run.id}`}
+              className="block rounded-lg border border-black/[.08] px-4 py-3 transition-colors hover:bg-zinc-50 dark:border-white/[.08] dark:hover:bg-zinc-900"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -3821,7 +3822,7 @@ function AnalysisRunsSection({ orgId, projectId }: { orgId: string; projectId: s
                   requesting analysis.
                 </p>
               )}
-            </div>
+            </Link>
           ))}
         </div>
       )}

@@ -8,6 +8,7 @@ import {
 import {
   AnalysisRunsService,
   type AnalysisRunInfo,
+  type AnalysisRunDetail,
 } from './analysis-runs.service.js';
 import { RecommendationsService } from '../recommendations/recommendations.service.js';
 
@@ -49,7 +50,7 @@ export class AnalysisRunsController {
     @Param('orgId') orgId: string,
     @Param('projectId') projectId: string,
     @Param('runId') runId: string,
-  ): Promise<AnalysisRunInfo> {
+  ): Promise<AnalysisRunDetail> {
     return this.analysisRunsService.findOne(orgId, projectId, runId, user.id);
   }
 

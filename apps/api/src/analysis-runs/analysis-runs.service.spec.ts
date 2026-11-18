@@ -19,6 +19,53 @@ function mockPrisma() {
   } as unknown as PrismaService;
 }
 
+const completedRunWithRecs = {
+  id: 'run-1',
+  projectId: 'proj-1',
+  organizationId: 'org-1',
+  requestedById: 'user-1',
+  status: 'COMPLETED',
+  periodStart: new Date('2026-10-01'),
+  periodEnd: new Date('2026-10-31'),
+  eventCount: 150,
+  statusMessage: 'Analysis completed: 2 recommendation(s) generated.',
+  startedAt: new Date('2026-10-31T10:00:00Z'),
+  completedAt: new Date('2026-10-31T10:05:00Z'),
+  createdAt: new Date('2026-10-31T09:59:00Z'),
+  _count: { recommendations: 2 },
+  recommendations: [
+    {
+      id: 'rec-1',
+      title: 'Improve onboarding',
+      status: 'PUBLISHED',
+      priorityScore: 85,
+    },
+    {
+      id: 'rec-2',
+      title: 'Simplify checkout',
+      status: 'ACCEPTED',
+      priorityScore: 72,
+    },
+  ],
+};
+
+const failedRun = {
+  id: 'run-2',
+  projectId: 'proj-1',
+  organizationId: 'org-1',
+  requestedById: 'user-1',
+  status: 'FAILED',
+  periodStart: new Date('2026-10-01'),
+  periodEnd: new Date('2026-10-31'),
+  eventCount: null,
+  statusMessage: 'Analysis failed: Bedrock timeout after 30s',
+  startedAt: new Date('2026-10-31T11:00:00Z'),
+  completedAt: new Date('2026-10-31T11:00:30Z'),
+  createdAt: new Date('2026-10-31T10:59:00Z'),
+  _count: { recommendations: 0 },
+  recommendations: [],
+};
+
 const membership = {
   id: 'mem-1',
   organizationId: 'org-1',
@@ -179,15 +226,14 @@ describe('AnalysisRunsService', () => {
   });
 
   describe('findOne', () => {
-    it('returns the run when found', async () => {
+    it('returns the run with recommendation count and summaries', async () => {
       const prisma = mockPrisma();
       const service = new AnalysisRunsService(prisma);
       setupAccess(prisma);
 
-      const run = { id: 'run-1', projectId: 'proj-1', status: 'COMPLETED' };
       (
         prisma.analysisRun.findFirst as ReturnType<typeof vi.fn>
-      ).mockResolvedValue(run);
+      ).mockResolvedValue(completedRunWithRecs);
 
       const result = await service.findOne(
         'org-1',
@@ -196,6 +242,47 @@ describe('AnalysisRunsService', () => {
         'user-1',
       );
       expect(result.id).toBe('run-1');
+      expect(result.recommendationCount).toBe(2);
+      expect(result.recommendations).toHaveLength(2);
+      expect(result.recommendations[0].title).toBe('Improve onboarding');
+      expect(prisma.analysisRun.findFirst).toHaveBeenCalledWith({
+        where: { id: 'run-1', projectId: 'proj-1' },
+        include: {
+          _count: { select: { recommendations: true } },
+          recommendations: {
+            select: {
+              id: true,
+              title: true,
+              status: true,
+              priorityScore: true,
+            },
+            orderBy: { priorityScore: 'desc' },
+          },
+        },
+      });
+    });
+
+    it('exposes failure details in statusMessage for failed runs', async () => {
+      const prisma = mockPrisma();
+      const service = new AnalysisRunsService(prisma);
+      setupAccess(prisma);
+
+      (
+        prisma.analysisRun.findFirst as ReturnType<typeof vi.fn>
+      ).mockResolvedValue(failedRun);
+
+      const result = await service.findOne(
+        'org-1',
+        'proj-1',
+        'run-2',
+        'user-1',
+      );
+      expect(result.status).toBe('FAILED');
+      expect(result.statusMessage).toBe(
+        'Analysis failed: Bedrock timeout after 30s',
+      );
+      expect(result.recommendationCount).toBe(0);
+      expect(result.recommendations).toHaveLength(0);
     });
 
     it('throws NotFoundException when run not found', async () => {

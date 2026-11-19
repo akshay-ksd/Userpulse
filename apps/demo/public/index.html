@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Userpulse Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0a0a; color: #e5e5e5; min-height: 100vh; padding: 24px; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    .subtitle { color: #888; margin-bottom: 24px; font-size: 14px; }
+    .container { max-width: 900px; margin: 0 auto; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 700px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: #161616; border: 1px solid #2a2a2a; border-radius: 12px; padding: 20px; }
+    .card h2 { font-size: 16px; margin-bottom: 16px; color: #fff; }
+    label { display: block; font-size: 13px; color: #aaa; margin-bottom: 4px; }
+    input, select { width: 100%; padding: 8px 12px; border: 1px solid #333; border-radius: 8px; background: #0d0d0d; color: #e5e5e5; font-size: 14px; margin-bottom: 12px; outline: none; }
+    input:focus, select:focus { border-color: #555; }
+    button { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.15s; }
+    .btn-primary { background: #2563eb; color: #fff; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { background: #1e3a5f; cursor: not-allowed; opacity: 0.6; }
+    .btn-secondary { background: #222; color: #ccc; border: 1px solid #333; }
+    .btn-secondary:hover { background: #2a2a2a; }
+    .btn-danger { background: #dc2626; color: #fff; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-success { background: #16a34a; color: #fff; }
+    .btn-success:hover { background: #15803d; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .status { padding: 12px; border-radius: 8px; font-size: 13px; margin-top: 12px; }
+    .status.ok { background: #052e16; border: 1px solid #16a34a; color: #4ade80; }
+    .status.error { background: #2a0a0a; border: 1px solid #dc2626; color: #f87171; }
+    .status.info { background: #0a1a2e; border: 1px solid #2563eb; color: #60a5fa; }
+    #log { background: #0d0d0d; border: 1px solid #2a2a2a; border-radius: 8px; padding: 12px; font-family: 'SF Mono', Monaco, monospace; font-size: 12px; line-height: 1.6; max-height: 400px; overflow-y: auto; margin-top: 12px; color: #aaa; }
+    #log .time { color: #555; }
+    #log .event { color: #4ade80; }
+    #log .api { color: #60a5fa; }
+    #log .error { color: #f87171; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 600; }
+    .badge.connected { background: #052e16; color: #4ade80; }
+    .badge.disconnected { background: #2a0a0a; color: #f87171; }
+    .stat { text-align: center; padding: 12px; }
+    .stat .num { font-size: 28px; font-weight: 700; color: #fff; }
+    .stat .label { font-size: 12px; color: #888; margin-top: 2px; }
+    .stats-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 16px; }
+    .full-width { grid-column: 1 / -1; }
+    .step-indicator { display: flex; gap: 4px; margin-bottom: 20px; }
+    .step { flex: 1; height: 4px; border-radius: 2px; background: #222; }
+    .step.done { background: #16a34a; }
+    .step.active { background: #2563eb; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Userpulse Demo</h1>
+    <p class="subtitle">Test the full event pipeline: SDK → API → Database</p>
+
+    <div class="step-indicator">
+      <div class="step" id="step1"></div>
+      <div class="step" id="step2"></div>
+      <div class="step" id="step3"></div>
+      <div class="step" id="step4"></div>
+    </div>
+
+    <div class="grid">
+      <!-- Setup Card -->
+      <div class="card" id="setup-card">
+        <h2>1. Setup Connection</h2>
+        <label>API URL</label>
+        <input type="text" id="apiUrl" value="/api" />
+        <label>Email</label>
+        <input type="email" id="email" placeholder="test@example.com" />
+        <label>Password</label>
+        <input type="password" id="password" placeholder="Password (min 8 chars)" />
+        <label>Name</label>
+        <input type="text" id="name" placeholder="Your Name" />
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-register" onclick="register()">Register & Setup</button>
+          <button class="btn-secondary" id="btn-signin" onclick="signIn()">Sign In (existing)</button>
+        </div>
+        <div id="setup-status"></div>
+      </div>
+
+      <!-- Track Events Card -->
+      <div class="card" id="track-card">
+        <h2>2. Track Events</h2>
+        <div class="stats-row">
+          <div class="stat"><div class="num" id="queued-count">0</div><div class="label">Queued</div></div>
+          <div class="stat"><div class="num" id="sent-count">0</div><div class="label">Sent</div></div>
+          <div class="stat"><div class="num" id="stored-count">0</div><div class="label">Stored</div></div>
+        </div>
+        <label>Event Name</label>
+        <input type="text" id="eventName" value="button_clicked" placeholder="e.g. button_clicked" />
+        <label>Properties (JSON)</label>
+        <input type="text" id="eventProps" value='{"page": "/home", "variant": "primary"}' placeholder='{"key": "value"}' />
+        <div class="btn-row">
+          <button class="btn-primary" id="btn-track" onclick="trackEvent()" disabled>Track Event</button>
+          <button class="btn-secondary" id="btn-page" onclick="trackPage()" disabled>Track Page View</button>
+          <button class="btn-success" id="btn-flush" onclick="flushEvents()" disabled>Flush to API</button>
+          <button class="btn-secondary" id="btn-verify" onclick="verifyEvents()" disabled>Verify in DB</button>
+        </div>
+        <div id="track-status"></div>
+      </div>
+
+      <!-- Quick Actions -->
+      <div class="card">
+        <h2>3. Quick Actions</h2>
+        <p style="color: #888; font-size: 13px; margin-bottom: 12px;">Send a batch of realistic events with one click</p>
+        <div class="btn-row">
+          <button class="btn-secondary" id="btn-user-journey" onclick="simulateUserJourney()" disabled>Simulate User Journey</button>
+          <button class="btn-secondary" id="btn-identify" onclick="identifyUser()" disabled>Identify User</button>
+          <button class="btn-danger" id="btn-reset" onclick="resetSDK()" disabled>Reset SDK</button>
+        </div>
+        <div id="action-status"></div>
+      </div>
+
+      <!-- Connection Info -->
+      <div class="card">
+        <h2>4. Connection Info</h2>
+        <div id="connection-info" style="font-size: 13px; color: #888;">
+          Not connected yet. Register or sign in first.
+        </div>
+      </div>
+
+      <!-- Event Log -->
+      <div class="card full-width">
+        <h2>Event Log <button class="btn-secondary" onclick="clearLog()" style="float:right; padding: 4px 10px; font-size: 12px;">Clear</button></h2>
+        <div id="log"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { init, track, page, identify, flush, destroy, reset } from '/sdk.js';
+
+    const API = () => document.getElementById('apiUrl').value;
+    let cookie = '';
+    let orgId = '';
+    let projectId = '';
+    let apiKey = '';
+    let client = null;
+    let sentCount = 0;
+    let currentStep = 0;
+
+    function log(msg, cls = '') {
+      const el = document.getElementById('log');
+      const time = new Date().toLocaleTimeString();
+      el.innerHTML += `<div><span class="time">[${time}]</span> <span class="${cls}">${msg}</span></div>`;
+      el.scrollTop = el.scrollHeight;
+    }
+    window.log = log;
+
+    function setStatus(id, msg, type) {
+      document.getElementById(id).innerHTML = `<div class="status ${type}">${msg}</div>`;
+    }
+
+    function updateStep(n) {
+      currentStep = n;
+      for (let i = 1; i <= 4; i++) {
+        const el = document.getElementById('step' + i);
+        el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+      }
+    }
+
+    function updateStats() {
+      document.getElementById('queued-count').textContent = client ? client.queue.length : 0;
+      document.getElementById('sent-count').textContent = sentCount;
+    }
+
+    function enableTrackButtons(enabled) {
+      ['btn-track', 'btn-page', 'btn-flush', 'btn-verify', 'btn-user-journey', 'btn-identify', 'btn-reset'].forEach(id => {
+        document.getElementById(id).disabled = !enabled;
+      });
+    }
+
+    async function api(method, path, body) {
+      const opts = { method, headers: { 'Content-Type': 'application/json' }, credentials: 'include' };
+      if (cookie) opts.headers['Cookie'] = cookie;
+      if (body) opts.body = JSON.stringify(body);
+      const res = await fetch(`${API()}${path}`, opts);
+      const setCookie = res.headers.getSetCookie?.() || [];
+      for (const c of setCookie) {
+        const match = c.match(/((?:__Host-)?sid=[^;]+)/);
+        if (match) cookie = match[1];
+      }
+      const text = await res.text();
+      let json;
+      try { json = JSON.parse(text); } catch { json = text; }
+      return { status: res.status, data: json };
+    }
+
+    async function setupProject() {
+      log('Creating organization...', 'api');
+      const org = await api('POST', '/organizations', { name: 'Demo Org' });
+      if (org.status !== 201) throw new Error(`Create org failed: ${org.status} - ${JSON.stringify(org.data)}`);
+      orgId = org.data.id;
+      log(`Organization created: ${orgId}`, 'event');
+
+      log('Creating project...', 'api');
+      const proj = await api('POST', `/organizations/${orgId}/projects`, { name: 'Demo Web App', description: 'Browser demo' });
+      if (proj.status !== 201) throw new Error(`Create project failed: ${proj.status} - ${JSON.stringify(proj.data)}`);
+      projectId = proj.data.id;
+      log(`Project created: ${projectId}`, 'event');
+
+      log('Generating API key...', 'api');
+      const key = await api('POST', `/organizations/${orgId}/projects/${projectId}/api-keys`, { name: 'demo-web-key' });
+      if (key.status !== 201) throw new Error(`Create API key failed: ${key.status} - ${JSON.stringify(key.data)}`);
+      apiKey = key.data.key;
+      log(`API key generated: ${key.data.keyPrefix}...`, 'event');
+
+      initSDK();
+    }
+
+    function initSDK() {
+      client = init({
+        apiKey,
+        endpoint: `${window.location.origin}/api/v1/events`,
+        flushInterval: 0,
+        maxQueueSize: 200,
+        debug: true,
+      });
+      log(`SDK initialized (v${client.sdkVersion}, anon=${client.anonymousId.slice(0, 8)}...)`, 'event');
+
+      document.getElementById('connection-info').innerHTML = `
+        <div style="margin-bottom: 8px;"><span class="badge connected">Connected</span></div>
+        <div><strong>Org:</strong> ${orgId}</div>
+        <div><strong>Project:</strong> ${projectId}</div>
+        <div><strong>API Key:</strong> ${apiKey.slice(0, 12)}...</div>
+        <div><strong>Anonymous ID:</strong> ${client.anonymousId.slice(0, 12)}...</div>
+        <div><strong>SDK Version:</strong> ${client.sdkVersion}</div>
+      `;
+      enableTrackButtons(true);
+      updateStep(2);
+    }
+
+    window.register = async function() {
+      try {
+        const email = document.getElementById('email').value || `demo-${Date.now()}@test.local`;
+        const password = document.getElementById('password').value || 'DemoPass123!';
+        const name = document.getElementById('name').value || 'Demo User';
+
+        document.getElementById('email').value = email;
+        document.getElementById('password').value = password;
+        document.getElementById('name').value = name;
+
+        updateStep(1);
+        log('Registering user...', 'api');
+        const reg = await api('POST', '/auth/register', { email, password, name });
+        if (reg.status !== 201) throw new Error(`Register failed: ${reg.status} - ${JSON.stringify(reg.data)}`);
+        log(`Registered: ${email}`, 'event');
+
+        log('Signing in...', 'api');
+        const login = await api('POST', '/auth/sign-in', { email, password });
+        if (login.status !== 200 && login.status !== 201) throw new Error(`Sign-in failed: ${login.status}`);
+        log('Signed in successfully', 'event');
+
+        await setupProject();
+        setStatus('setup-status', 'Connected and ready to track events!', 'ok');
+      } catch (e) {
+        log(e.message, 'error');
+        setStatus('setup-status', e.message, 'error');
+      }
+    };
+
+    window.signIn = async function() {
+      try {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        if (!email || !password) { setStatus('setup-status', 'Enter email and password', 'error'); return; }
+
+        updateStep(1);
+        log('Signing in...', 'api');
+        const login = await api('POST', '/auth/sign-in', { email, password });
+        if (login.status !== 200 && login.status !== 201) throw new Error(`Sign-in failed: ${login.status} - ${JSON.stringify(login.data)}`);
+        log('Signed in successfully', 'event');
+
+        await setupProject();
+        setStatus('setup-status', 'Connected and ready to track events!', 'ok');
+      } catch (e) {
+        log(e.message, 'error');
+        setStatus('setup-status', e.message, 'error');
+      }
+    };
+
+    window.trackEvent = function() {
+      const name = document.getElementById('eventName').value || 'button_clicked';
+      let props = {};
+      try { props = JSON.parse(document.getElementById('eventProps').value || '{}'); } catch {}
+      track(name, props);
+      log(`Tracked: <strong>${name}</strong> ${JSON.stringify(props)}`, 'event');
+      updateStats();
+      updateStep(3);
+    };
+
+    window.trackPage = function() {
+      const name = document.getElementById('eventName').value || 'Home';
+      let props = {};
+      try { props = JSON.parse(document.getElementById('eventProps').value || '{}'); } catch {}
+      page(name, props);
+      log(`Page view: <strong>${name}</strong>`, 'event');
+      updateStats();
+      updateStep(3);
+    };
+
+    window.flushEvents = async function() {
+      const count = client.queue.length;
+      log(`Flushing ${count} events...`, 'api');
+      await flush();
+      sentCount += count;
+      log(`Flushed! Queue is now ${client.queue.length}`, 'event');
+      updateStats();
+    };
+
+    window.verifyEvents = async function() {
+      try {
+        log('Checking events in database...', 'api');
+        const res = await api('GET', `/organizations/${orgId}/projects/${projectId}/event-status`);
+        if (res.status === 200) {
+          const total = res.data.totalEvents ?? res.data.total ?? 0;
+          document.getElementById('stored-count').textContent = total;
+          log(`Database: <strong>${total} events</strong> stored (latest: ${res.data.latestEventAt || 'n/a'})`, 'event');
+          setStatus('track-status', `${total} events verified in database`, 'ok');
+          updateStep(4);
+        } else {
+          throw new Error(`Status check failed: ${res.status}`);
+        }
+      } catch (e) {
+        log(e.message, 'error');
+        setStatus('track-status', e.message, 'error');
+      }
+    };
+
+    window.simulateUserJourney = function() {
+      const events = [
+        ['app_opened', { source: 'web', platform: 'browser' }],
+        ['page_viewed', { page: '/home', referrer: 'google.com' }],
+        ['button_clicked', { button: 'get-started', page: '/home' }],
+        ['signup_started', { method: 'email' }],
+        ['signup_completed', { method: 'email', duration_ms: 4500 }],
+        ['feature_used', { feature: 'dashboard', duration_ms: 12000 }],
+        ['search_performed', { query: 'conversion rate', results: 8 }],
+        ['feature_used', { feature: 'analytics', duration_ms: 8000 }],
+      ];
+      events.forEach(([name, props]) => track(name, props));
+      page('Home', { path: '/' });
+      page('Dashboard', { path: '/dashboard' });
+      log(`Simulated user journey: <strong>${events.length + 2} events</strong> queued`, 'event');
+      updateStats();
+      updateStep(3);
+    };
+
+    window.identifyUser = function() {
+      const userId = 'user-' + Math.random().toString(36).slice(2, 8);
+      identify(userId, { plan: 'pro', role: 'admin', source: 'demo' });
+      log(`Identified user: <strong>${userId}</strong>`, 'event');
+    };
+
+    window.resetSDK = function() {
+      reset();
+      log('SDK reset — new anonymous ID generated', 'event');
+      if (client) {
+        document.getElementById('connection-info').innerHTML = document.getElementById('connection-info').innerHTML
+          .replace(/Anonymous ID:<\/strong>.*/, `Anonymous ID:</strong> ${client.anonymousId.slice(0, 12)}...</div>`);
+      }
+    };
+
+    window.clearLog = function() {
+      document.getElementById('log').innerHTML = '';
+    };
+
+    log('Demo app ready. Register or sign in to start.', 'api');
+  </script>
+</body>
+</html>

@@ -1728,6 +1728,19 @@ function UnmappedEventsSection({
                 </div>
                 <div>
                   {mappingEvent === evt.eventName ? (
+                    activeFeatures.length === 0 ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                        No features yet. Create a feature first.
+                      </span>
+                      <button
+                        onClick={() => setMappingEvent(null)}
+                        className="shrink-0 rounded-md border border-black/[.15] px-2.5 py-1 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-white/[.2] dark:text-zinc-400 dark:hover:bg-zinc-800"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                    ) : (
                     <div className="flex items-center gap-2">
                       <select
                         value={selectedFeature}
@@ -1764,6 +1777,7 @@ function UnmappedEventsSection({
                         Cancel
                       </button>
                     </div>
+                    )
                   ) : (
                     <button
                       onClick={() => setMappingEvent(evt.eventName)}

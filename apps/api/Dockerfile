@@ -4,14 +4,13 @@ WORKDIR /app
 
 # --- Dependencies ---
 FROM base AS deps
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY apps/api/package.json apps/api/package.json
 COPY packages/database/package.json packages/database/package.json
 RUN pnpm install --frozen-lockfile
 
 # --- Build database package ---
 FROM deps AS db-build
-COPY tsconfig.base.json ./
 COPY packages/database packages/database
 RUN pnpm --filter @userpulse/database run generate
 RUN pnpm --filter @userpulse/database run build
@@ -31,10 +30,10 @@ COPY apps/api/package.json apps/api/package.json
 COPY packages/database/package.json packages/database/package.json
 RUN pnpm install --frozen-lockfile --prod
 
+COPY packages/database/prisma packages/database/prisma
+RUN pnpm --filter @userpulse/database run generate
+
 COPY --from=db-build /app/packages/database/dist packages/database/dist
-COPY --from=db-build /app/packages/database/prisma packages/database/prisma
-COPY --from=db-build /app/node_modules/.pnpm/*prisma*/node_modules/.prisma node_modules/.pnpm/prisma-generated/node_modules/.prisma
-COPY --from=db-build /app/node_modules/.prisma node_modules/.prisma
 COPY --from=api-build /app/apps/api/dist apps/api/dist
 
 EXPOSE 3001

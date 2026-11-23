@@ -16,4 +16,4 @@ RUN pnpm --filter api run build
 
 ENV NODE_ENV=production
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma migrate deploy --schema=packages/database/prisma/schema.prisma && node apps/api/dist/main.js"]
+CMD ["sh", "-c", "pnpm --filter @userpulse/database run migrate:deploy && node apps/api/dist/main.js"]

@@ -55,14 +55,14 @@ export class EventProcessorService {
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
       SELECT id FROM events
       WHERE (
-        processing_status = 'PENDING'
-        AND validation_status = 'VALID'
+        "processingStatus" = 'PENDING'
+        AND "validationStatus" = 'VALID'
       ) OR (
-        processing_status = 'FAILED'
-        AND retry_count < ${MAX_RETRIES}
-        AND ingested_at < NOW() - INTERVAL '1 second' * ${RETRY_BACKOFF_SECONDS} * retry_count
+        "processingStatus" = 'FAILED'
+        AND "retryCount" < ${MAX_RETRIES}
+        AND "ingestedAt" < NOW() - INTERVAL '1 second' * ${RETRY_BACKOFF_SECONDS} * "retryCount"
       )
-      ORDER BY ingested_at ASC
+      ORDER BY "ingestedAt" ASC
       LIMIT ${BATCH_SIZE}
       FOR UPDATE SKIP LOCKED
     `;
@@ -130,12 +130,12 @@ export class EventProcessorService {
   }> {
     const [counts, oldestPending, recentProcessed] = await Promise.all([
       this.prisma.$queryRaw<
-        Array<{ processing_status: string; count: bigint }>
+        Array<{ processingStatus: string; count: bigint }>
       >`
-        SELECT processing_status, COUNT(*)::bigint as count
+        SELECT "processingStatus", COUNT(*)::bigint as count
         FROM events
-        WHERE validation_status = 'VALID' OR processing_status = 'REJECTED'
-        GROUP BY processing_status
+        WHERE "validationStatus" = 'VALID' OR "processingStatus" = 'REJECTED'
+        GROUP BY "processingStatus"
       `,
       this.prisma.event.findFirst({
         where: { processingStatus: 'PENDING', validationStatus: 'VALID' },
@@ -152,7 +152,7 @@ export class EventProcessorService {
 
     const statusCounts: Record<string, number> = {};
     for (const row of counts) {
-      statusCounts[row.processing_status] = Number(row.count);
+      statusCounts[row.processingStatus] = Number(row.count);
     }
 
     return {

@@ -75,9 +75,12 @@
         <input type="password" id="password" placeholder="Password (min 8 chars)" />
         <label>Name</label>
         <input type="text" id="name" placeholder="Your Name" />
+        <label>API Key (skip auth — use existing key)</label>
+        <input type="text" id="existingApiKey" value="2TtUk6Lbe_vWM69eXxqf1TRq-WvAj9Ak1DHA2jTI39A" placeholder="Paste an existing project API key" />
         <div class="btn-row">
           <button class="btn-primary" id="btn-register" onclick="register()">Register & Setup</button>
           <button class="btn-secondary" id="btn-signin" onclick="signIn()">Sign In (existing)</button>
+          <button class="btn-secondary" id="btn-usekey" onclick="useExistingKey()">Use API Key</button>
         </div>
         <div id="setup-status"></div>
       </div>
@@ -257,6 +260,21 @@
 
         await setupProject();
         setStatus('setup-status', 'Connected and ready to track events!', 'ok');
+      } catch (e) {
+        log(e.message, 'error');
+        setStatus('setup-status', e.message, 'error');
+      }
+    };
+
+    window.useExistingKey = function() {
+      try {
+        const key = document.getElementById('existingApiKey').value.trim();
+        if (!key) { setStatus('setup-status', 'Paste an API key first', 'error'); return; }
+        updateStep(1);
+        apiKey = key;
+        log(`Using existing API key: ${apiKey.slice(0, 12)}...`, 'event');
+        initSDK();
+        setStatus('setup-status', 'Connected with existing API key — ready to track!', 'ok');
       } catch (e) {
         log(e.message, 'error');
         setStatus('setup-status', e.message, 'error');

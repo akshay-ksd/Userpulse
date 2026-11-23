@@ -191,13 +191,13 @@ export class AnalyticsService {
     const dailyRows = await this.prisma.$queryRaw<
       Array<{ day: Date; count: bigint }>
     >`
-      SELECT DATE("event_timestamp") AS day, COUNT(*)::bigint AS count
+      SELECT DATE("eventTimestamp") AS day, COUNT(*)::bigint AS count
       FROM events
-      WHERE "project_id" = ${projectId}
-        AND "validation_status" = 'VALID'
-        AND "event_timestamp" >= ${startDateTime}
-        AND "event_timestamp" <= ${endDateTime}
-      GROUP BY DATE("event_timestamp")
+      WHERE "projectId" = ${projectId}
+        AND "validationStatus" = 'VALID'
+        AND "eventTimestamp" >= ${startDateTime}
+        AND "eventTimestamp" <= ${endDateTime}
+      GROUP BY DATE("eventTimestamp")
       ORDER BY day
     `;
 
@@ -248,13 +248,13 @@ export class AnalyticsService {
     const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
 
     const totalRows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(DISTINCT COALESCE("user_id", "anonymous_id"))::bigint AS count
+      SELECT COUNT(DISTINCT COALESCE("userId", "anonymousId"))::bigint AS count
       FROM events
-      WHERE "project_id" = ${projectId}
-        AND "validation_status" = 'VALID'
-        AND "event_timestamp" >= ${startDateTime}
-        AND "event_timestamp" <= ${endDateTime}
-        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+      WHERE "projectId" = ${projectId}
+        AND "validationStatus" = 'VALID'
+        AND "eventTimestamp" >= ${startDateTime}
+        AND "eventTimestamp" <= ${endDateTime}
+        AND ("userId" IS NOT NULL OR "anonymousId" IS NOT NULL)
     `;
 
     const total = Number(totalRows[0]?.count ?? 0);
@@ -262,15 +262,15 @@ export class AnalyticsService {
     const dailyRows = await this.prisma.$queryRaw<
       Array<{ day: Date; count: bigint }>
     >`
-      SELECT DATE("event_timestamp") AS day,
-             COUNT(DISTINCT COALESCE("user_id", "anonymous_id"))::bigint AS count
+      SELECT DATE("eventTimestamp") AS day,
+             COUNT(DISTINCT COALESCE("userId", "anonymousId"))::bigint AS count
       FROM events
-      WHERE "project_id" = ${projectId}
-        AND "validation_status" = 'VALID'
-        AND "event_timestamp" >= ${startDateTime}
-        AND "event_timestamp" <= ${endDateTime}
-        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
-      GROUP BY DATE("event_timestamp")
+      WHERE "projectId" = ${projectId}
+        AND "validationStatus" = 'VALID'
+        AND "eventTimestamp" >= ${startDateTime}
+        AND "eventTimestamp" <= ${endDateTime}
+        AND ("userId" IS NOT NULL OR "anonymousId" IS NOT NULL)
+      GROUP BY DATE("eventTimestamp")
       ORDER BY day
     `;
 
@@ -327,36 +327,36 @@ export class AnalyticsService {
     const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
 
     const totalRows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(DISTINCT COALESCE("user_id", "anonymous_id"))::bigint AS count
+      SELECT COUNT(DISTINCT COALESCE("userId", "anonymousId"))::bigint AS count
       FROM events
-      WHERE "project_id" = ${projectId}
-        AND "validation_status" = 'VALID'
-        AND "event_timestamp" >= ${startDateTime}
-        AND "event_timestamp" <= ${endDateTime}
-        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+      WHERE "projectId" = ${projectId}
+        AND "validationStatus" = 'VALID'
+        AND "eventTimestamp" >= ${startDateTime}
+        AND "eventTimestamp" <= ${endDateTime}
+        AND ("userId" IS NOT NULL OR "anonymousId" IS NOT NULL)
     `;
 
     const totalActiveUsers = Number(totalRows[0]?.count ?? 0);
 
     const featureUserRows = await this.prisma.$queryRaw<
-      Array<{ feature_id: string; count: bigint }>
+      Array<{ featureId: string; count: bigint }>
     >`
-      SELECT fem."feature_id" AS feature_id,
-             COUNT(DISTINCT COALESCE(e."user_id", e."anonymous_id"))::bigint AS count
+      SELECT fem."featureId" AS "featureId",
+             COUNT(DISTINCT COALESCE(e."userId", e."anonymousId"))::bigint AS count
       FROM events e
       INNER JOIN feature_event_mappings fem
-        ON e."project_id" = fem."project_id" AND e."event_name" = fem."event_name"
-      WHERE e."project_id" = ${projectId}
-        AND e."validation_status" = 'VALID'
-        AND e."event_timestamp" >= ${startDateTime}
-        AND e."event_timestamp" <= ${endDateTime}
-        AND (e."user_id" IS NOT NULL OR e."anonymous_id" IS NOT NULL)
-      GROUP BY fem."feature_id"
+        ON e."projectId" = fem."projectId" AND e."eventName" = fem."eventName"
+      WHERE e."projectId" = ${projectId}
+        AND e."validationStatus" = 'VALID'
+        AND e."eventTimestamp" >= ${startDateTime}
+        AND e."eventTimestamp" <= ${endDateTime}
+        AND (e."userId" IS NOT NULL OR e."anonymousId" IS NOT NULL)
+      GROUP BY fem."featureId"
     `;
 
     const featureUserMap = new Map<string, number>();
     for (const row of featureUserRows) {
-      featureUserMap.set(row.feature_id, Number(row.count));
+      featureUserMap.set(row.featureId, Number(row.count));
     }
 
     const activeFeatures = await this.prisma.feature.findMany({
@@ -440,11 +440,11 @@ export class AnalyticsService {
       const totalRows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
         SELECT COUNT(*)::bigint AS count
         FROM events
-        WHERE "project_id" = ${projectId}
-          AND "validation_status" = 'VALID'
-          AND "event_name" IN (${Prisma.join(eventNames)})
-          AND "event_timestamp" >= ${startDateTime}
-          AND "event_timestamp" <= ${endDateTime}
+        WHERE "projectId" = ${projectId}
+          AND "validationStatus" = 'VALID'
+          AND "eventName" IN (${Prisma.join(eventNames)})
+          AND "eventTimestamp" >= ${startDateTime}
+          AND "eventTimestamp" <= ${endDateTime}
       `;
 
       total = Number(totalRows[0]?.count ?? 0);
@@ -452,14 +452,14 @@ export class AnalyticsService {
       const dailyRows = await this.prisma.$queryRaw<
         Array<{ day: Date; count: bigint }>
       >`
-        SELECT DATE("event_timestamp") AS day, COUNT(*)::bigint AS count
+        SELECT DATE("eventTimestamp") AS day, COUNT(*)::bigint AS count
         FROM events
-        WHERE "project_id" = ${projectId}
-          AND "validation_status" = 'VALID'
-          AND "event_name" IN (${Prisma.join(eventNames)})
-          AND "event_timestamp" >= ${startDateTime}
-          AND "event_timestamp" <= ${endDateTime}
-        GROUP BY DATE("event_timestamp")
+        WHERE "projectId" = ${projectId}
+          AND "validationStatus" = 'VALID'
+          AND "eventName" IN (${Prisma.join(eventNames)})
+          AND "eventTimestamp" >= ${startDateTime}
+          AND "eventTimestamp" <= ${endDateTime}
+        GROUP BY DATE("eventTimestamp")
         ORDER BY day
       `;
 
@@ -517,23 +517,23 @@ export class AnalyticsService {
     const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
 
     const featureEventRows = await this.prisma.$queryRaw<
-      Array<{ feature_id: string; count: bigint }>
+      Array<{ featureId: string; count: bigint }>
     >`
-      SELECT fem."feature_id" AS feature_id,
+      SELECT fem."featureId" AS "featureId",
              COUNT(*)::bigint AS count
       FROM events e
       INNER JOIN feature_event_mappings fem
-        ON e."project_id" = fem."project_id" AND e."event_name" = fem."event_name"
-      WHERE e."project_id" = ${projectId}
-        AND e."validation_status" = 'VALID'
-        AND e."event_timestamp" >= ${startDateTime}
-        AND e."event_timestamp" <= ${endDateTime}
-      GROUP BY fem."feature_id"
+        ON e."projectId" = fem."projectId" AND e."eventName" = fem."eventName"
+      WHERE e."projectId" = ${projectId}
+        AND e."validationStatus" = 'VALID'
+        AND e."eventTimestamp" >= ${startDateTime}
+        AND e."eventTimestamp" <= ${endDateTime}
+      GROUP BY fem."featureId"
     `;
 
     const featureEventMap = new Map<string, number>();
     for (const row of featureEventRows) {
-      featureEventMap.set(row.feature_id, Number(row.count));
+      featureEventMap.set(row.featureId, Number(row.count));
     }
 
     const activeFeatures = await this.prisma.feature.findMany({
@@ -589,13 +589,13 @@ export class AnalyticsService {
     const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
 
     const totalRows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(DISTINCT COALESCE("user_id", "anonymous_id"))::bigint AS count
+      SELECT COUNT(DISTINCT COALESCE("userId", "anonymousId"))::bigint AS count
       FROM events
-      WHERE "project_id" = ${projectId}
-        AND "validation_status" = 'VALID'
-        AND "event_timestamp" >= ${startDateTime}
-        AND "event_timestamp" <= ${endDateTime}
-        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+      WHERE "projectId" = ${projectId}
+        AND "validationStatus" = 'VALID'
+        AND "eventTimestamp" >= ${startDateTime}
+        AND "eventTimestamp" <= ${endDateTime}
+        AND ("userId" IS NOT NULL OR "anonymousId" IS NOT NULL)
     `;
 
     const totalUsers = Number(totalRows[0]?.count ?? 0);
@@ -619,23 +619,23 @@ export class AnalyticsService {
       `
       WITH user_events AS (
         SELECT
-          COALESCE("user_id", "anonymous_id") AS uid,
-          "event_name",
+          COALESCE("userId", "anonymousId") AS uid,
+          "eventName",
           ROW_NUMBER() OVER (
-            PARTITION BY COALESCE("user_id", "anonymous_id")
-            ORDER BY "event_timestamp", "ingested_at"
+            PARTITION BY COALESCE("userId", "anonymousId")
+            ORDER BY "eventTimestamp", "ingestedAt"
           ) AS rn
         FROM events
-        WHERE "project_id" = $1
-          AND "validation_status" = 'VALID'
-          AND "event_timestamp" >= $2
-          AND "event_timestamp" <= $3
-          AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+        WHERE "projectId" = $1
+          AND "validationStatus" = 'VALID'
+          AND "eventTimestamp" >= $2
+          AND "eventTimestamp" <= $3
+          AND ("userId" IS NOT NULL OR "anonymousId" IS NOT NULL)
       ),
       sequences AS (
         SELECT
           e1.uid,
-          ARRAY[${Array.from({ length: maxSteps }, (_, i) => `e${i + 1}."event_name"`).join(', ')}] AS seq
+          ARRAY[${Array.from({ length: maxSteps }, (_, i) => `e${i + 1}."eventName"`).join(', ')}] AS seq
         FROM user_events e1
         ${Array.from({ length: maxSteps - 1 }, (_, i) => {
           const idx = i + 2;
@@ -705,23 +705,23 @@ export class AnalyticsService {
     const endDateTime = new Date(`${endDate}T23:59:59.999Z`);
 
     const featureEventRows = await this.prisma.$queryRaw<
-      Array<{ feature_id: string; count: bigint }>
+      Array<{ featureId: string; count: bigint }>
     >`
-      SELECT fem."feature_id" AS feature_id,
+      SELECT fem."featureId" AS "featureId",
              COUNT(*)::bigint AS count
       FROM events e
       INNER JOIN feature_event_mappings fem
-        ON e."project_id" = fem."project_id" AND e."event_name" = fem."event_name"
-      WHERE e."project_id" = ${projectId}
-        AND e."validation_status" = 'VALID'
-        AND e."event_timestamp" >= ${startDateTime}
-        AND e."event_timestamp" <= ${endDateTime}
-      GROUP BY fem."feature_id"
+        ON e."projectId" = fem."projectId" AND e."eventName" = fem."eventName"
+      WHERE e."projectId" = ${projectId}
+        AND e."validationStatus" = 'VALID'
+        AND e."eventTimestamp" >= ${startDateTime}
+        AND e."eventTimestamp" <= ${endDateTime}
+      GROUP BY fem."featureId"
     `;
 
     const featureEventMap = new Map<string, number>();
     for (const row of featureEventRows) {
-      featureEventMap.set(row.feature_id, Number(row.count));
+      featureEventMap.set(row.featureId, Number(row.count));
     }
 
     const activeFeatures = await this.prisma.feature.findMany({
@@ -840,23 +840,23 @@ export class AnalyticsService {
     const baselineEndDt = new Date(`${baselineEndDate}T23:59:59.999Z`);
 
     const [currentEventRows, baselineEventRows] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ event_name: string; count: bigint }>>`
-        SELECT "event_name", COUNT(*)::bigint AS count
+      this.prisma.$queryRaw<Array<{ eventName: string; count: bigint }>>`
+        SELECT "eventName", COUNT(*)::bigint AS count
         FROM events
-        WHERE "project_id" = ${projectId}
-          AND "validation_status" = 'VALID'
-          AND "event_timestamp" >= ${currentStart}
-          AND "event_timestamp" <= ${currentEnd}
-        GROUP BY "event_name"
+        WHERE "projectId" = ${projectId}
+          AND "validationStatus" = 'VALID'
+          AND "eventTimestamp" >= ${currentStart}
+          AND "eventTimestamp" <= ${currentEnd}
+        GROUP BY "eventName"
       `,
-      this.prisma.$queryRaw<Array<{ event_name: string; count: bigint }>>`
-        SELECT "event_name", COUNT(*)::bigint AS count
+      this.prisma.$queryRaw<Array<{ eventName: string; count: bigint }>>`
+        SELECT "eventName", COUNT(*)::bigint AS count
         FROM events
-        WHERE "project_id" = ${projectId}
-          AND "validation_status" = 'VALID'
-          AND "event_timestamp" >= ${baselineStartDt}
-          AND "event_timestamp" <= ${baselineEndDt}
-        GROUP BY "event_name"
+        WHERE "projectId" = ${projectId}
+          AND "validationStatus" = 'VALID'
+          AND "eventTimestamp" >= ${baselineStartDt}
+          AND "eventTimestamp" <= ${baselineEndDt}
+        GROUP BY "eventName"
       `,
     ]);
 
@@ -864,7 +864,7 @@ export class AnalyticsService {
     let currentTotal = 0;
     for (const row of currentEventRows) {
       const c = Number(row.count);
-      currentMap.set(row.event_name, c);
+      currentMap.set(row.eventName, c);
       currentTotal += c;
     }
 
@@ -872,7 +872,7 @@ export class AnalyticsService {
     let baselineTotal = 0;
     for (const row of baselineEventRows) {
       const c = Number(row.count);
-      baselineMap.set(row.event_name, c);
+      baselineMap.set(row.eventName, c);
       baselineTotal += c;
     }
 

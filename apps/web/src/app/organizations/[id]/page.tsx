@@ -94,38 +94,75 @@ function InviteForm({ orgId, onInvited }: { orgId: string; onInvited: () => void
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Invite a member</h2>
-      <div className="flex gap-2">
-        <input
-          type="email"
-          required
-          placeholder="colleague@example.com"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          disabled={submitting}
-          className="flex-1 rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
-        />
-        <select
-          value={role}
-          onChange={(e) => setRole(e.target.value as 'MEMBER' | 'ADMIN')}
-          disabled={submitting}
-          className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:focus:ring-white/20"
-        >
-          <option value="MEMBER">Member</option>
-          <option value="ADMIN">Admin</option>
-        </select>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
-        >
-          {submitting ? 'Sending…' : 'Invite'}
-        </button>
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="border-b border-gray-100 px-6 py-4 dark:border-zinc-800">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-900/40 dark:text-violet-400">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+            </svg>
+          </div>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-zinc-50">Invite a Member</h2>
+        </div>
       </div>
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {success && <p className="text-sm text-green-600 dark:text-green-400">{success}</p>}
-    </form>
+      <form onSubmit={handleSubmit} className="p-6">
+        <div className="flex gap-3">
+          <input
+            type="email"
+            required
+            placeholder="colleague@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={submitting}
+            className="flex-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-violet-600 dark:focus:ring-violet-500/20"
+          />
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value as 'MEMBER' | 'ADMIN')}
+            disabled={submitting}
+            className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-violet-300 focus:outline-none focus:ring-2 focus:ring-violet-500/20 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50 dark:focus:border-violet-600 dark:focus:ring-violet-500/20"
+          >
+            <option value="MEMBER">Member</option>
+            <option value="ADMIN">Admin</option>
+          </select>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-violet-700 disabled:opacity-50"
+          >
+            {submitting ? (
+              <>
+                <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                Sending…
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                </svg>
+                Send Invite
+              </>
+            )}
+          </button>
+        </div>
+        {error && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 dark:bg-red-900/20">
+            <svg className="h-4 w-4 flex-shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+          </div>
+        )}
+        {success && (
+          <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2 dark:bg-emerald-900/20">
+            <svg className="h-4 w-4 flex-shrink-0 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-emerald-700 dark:text-emerald-400">{success}</p>
+          </div>
+        )}
+      </form>
+    </div>
   );
 }
 
@@ -175,26 +212,40 @@ function PendingInvitations({ orgId, refreshKey }: { orgId: string; refreshKey: 
   if (invitations.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-2">
-      <h3 className="text-sm font-medium text-zinc-600 dark:text-zinc-400">Pending invitations</h3>
-      <ul className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="border-b border-gray-100 px-6 py-4 dark:border-zinc-800">
+        <div className="flex items-center gap-2">
+          <h3 className="text-base font-semibold text-gray-900 dark:text-zinc-50">Pending Invitations</h3>
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium tabular-nums text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+            {invitations.length}
+          </span>
+        </div>
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-zinc-800">
         {invitations.map((inv) => (
-          <li key={inv.id} className="flex items-center justify-between px-4 py-3">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm text-black dark:text-zinc-50">{inv.email}</span>
-              <span className="text-xs text-zinc-500">
-                {inv.role} · Expires {new Date(inv.expiresAt).toLocaleDateString()}
-              </span>
+          <div key={inv.id} className="flex items-center justify-between px-6 py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900 dark:text-zinc-50">{inv.email}</p>
+                <p className="text-xs text-gray-500 dark:text-zinc-400">
+                  {inv.role} · Expires {new Date(inv.expiresAt).toLocaleDateString()}
+                </p>
+              </div>
             </div>
             <button
               onClick={() => handleCancel(inv.id)}
-              className="text-xs text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-900/20"
             >
               Cancel
             </button>
-          </li>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
@@ -257,38 +308,78 @@ function MembersList({
     }
   }
 
-  if (loading) return <p className="text-sm text-zinc-500">Loading members…</p>;
-  if (members.length === 0) return null;
-
   const ownerCount = members.filter((m) => m.role === 'OWNER').length;
 
+  const roleBadge = (r: string) => {
+    const styles: Record<string, string> = {
+      OWNER: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400',
+      ADMIN: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+      MEMBER: 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400',
+    };
+    return (
+      <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${styles[r] ?? styles.MEMBER}`}>
+        {r}
+      </span>
+    );
+  };
+
   return (
-    <div className="flex flex-col gap-2">
-      <h2 className="text-lg font-medium text-black dark:text-zinc-50">Members</h2>
-      <ul className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
-        {members.map((m) => (
-          <li key={m.id} className="flex items-center justify-between px-4 py-3">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm text-black dark:text-zinc-50">{m.name ?? m.email}</span>
-              {m.name && <span className="text-xs text-zinc-500">{m.email}</span>}
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="border-b border-gray-100 px-6 py-4 dark:border-zinc-800">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-100 text-blue-600 dark:bg-blue-900/40 dark:text-blue-400">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+            </svg>
+          </div>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-zinc-50">Members</h2>
+          {!loading && members.length > 0 && (
+            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium tabular-nums text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+              {members.length}
+            </span>
+          )}
+        </div>
+      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+            <p className="text-sm text-gray-500 dark:text-zinc-400">Loading members…</p>
+          </div>
+        </div>
+      ) : members.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <p className="text-sm text-gray-500 dark:text-zinc-400">No members found.</p>
+        </div>
+      ) : (
+        <div className="divide-y divide-gray-100 dark:divide-zinc-800">
+          {members.map((m) => (
+            <div key={m.id} className="flex items-center justify-between px-6 py-3 transition-colors hover:bg-gray-50/50 dark:hover:bg-zinc-800/50">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-blue-100 to-indigo-100 text-sm font-semibold text-blue-700 dark:from-blue-900/40 dark:to-indigo-900/40 dark:text-blue-400">
+                  {(m.name ?? m.email).charAt(0).toUpperCase()}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-zinc-50">{m.name ?? m.email}</p>
+                  {m.name && <p className="text-xs text-gray-500 dark:text-zinc-400">{m.email}</p>}
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {roleBadge(m.role)}
+                {isOwner && !(m.role === 'OWNER' && ownerCount <= 1) && (
+                  <button
+                    onClick={() => handleRemove(m.id)}
+                    disabled={removing === m.id}
+                    className="rounded-lg px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 disabled:opacity-50 dark:text-red-400 dark:hover:bg-red-900/20"
+                  >
+                    {removing === m.id ? 'Removing…' : 'Remove'}
+                  </button>
+                )}
+              </div>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-                {m.role}
-              </span>
-              {isOwner && !(m.role === 'OWNER' && ownerCount <= 1) && (
-                <button
-                  onClick={() => handleRemove(m.id)}
-                  disabled={removing === m.id}
-                  className="text-xs text-red-600 hover:text-red-800 disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
-                >
-                  {removing === m.id ? 'Removing…' : 'Remove'}
-                </button>
-              )}
-            </div>
-          </li>
-        ))}
-      </ul>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -357,93 +448,133 @@ function ProjectsSection({ orgId }: { orgId: string }) {
     }
   }
 
-  if (loading) return <p className="text-sm text-zinc-500">Loading projects…</p>;
-
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-medium text-black dark:text-zinc-50">Projects</h2>
+    <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-zinc-800">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+            </svg>
+          </div>
+          <h2 className="text-base font-semibold text-gray-900 dark:text-zinc-50">Projects</h2>
+          {!loading && projects.length > 0 && (
+            <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium tabular-nums text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+              {projects.length}
+            </span>
+          )}
+        </div>
         <button
           onClick={() => setShowForm((v) => !v)}
-          className="rounded-lg bg-black px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700"
         >
-          {showForm ? 'Cancel' : 'New project'}
+          {showForm ? (
+            'Cancel'
+          ) : (
+            <>
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              New Project
+            </>
+          )}
         </button>
       </div>
 
       {showForm && (
-        <form
-          onSubmit={handleCreate}
-          className="flex flex-col gap-3 rounded-xl border border-black/[.08] p-4 dark:border-white/[.08]"
-        >
-          <input
-            type="text"
-            required
-            placeholder="Project name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            disabled={submitting}
-            className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
-          />
-          <textarea
-            placeholder="Description (optional)"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            disabled={submitting}
-            rows={2}
-            className="rounded-lg border border-black/[.15] bg-transparent px-3 py-2 text-sm text-black placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-black/20 disabled:opacity-50 dark:border-white/[.2] dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:ring-white/20"
-          />
-          <button
-            type="submit"
-            disabled={submitting}
-            className="self-end rounded-lg bg-black px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
-          >
-            {submitting ? 'Creating…' : 'Create project'}
-          </button>
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-        </form>
+        <div className="border-b border-gray-100 bg-gray-50/50 p-6 dark:border-zinc-800 dark:bg-zinc-800/50">
+          <form onSubmit={handleCreate} className="flex flex-col gap-3">
+            <input
+              type="text"
+              required
+              placeholder="Project name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={submitting}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-emerald-600 dark:focus:ring-emerald-500/20"
+            />
+            <textarea
+              placeholder="Description (optional)"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              disabled={submitting}
+              rows={2}
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50 dark:placeholder:text-zinc-500 dark:focus:border-emerald-600 dark:focus:ring-emerald-500/20"
+            />
+            <div className="flex items-center justify-between">
+              {error && (
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              )}
+              <button
+                type="submit"
+                disabled={submitting}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {submitting ? 'Creating…' : 'Create Project'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
 
-      {projects.length === 0 && !showForm ? (
-        <div className="rounded-xl border border-dashed border-black/[.15] p-6 text-center dark:border-white/[.2]">
-          <p className="text-zinc-600 dark:text-zinc-400">
-            No projects yet. Create one to start tracking.
-          </p>
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-3">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-emerald-600" />
+            <p className="text-sm text-gray-500 dark:text-zinc-400">Loading projects…</p>
+          </div>
+        </div>
+      ) : projects.length === 0 && !showForm ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 dark:bg-emerald-900/30">
+            <svg className="h-6 w-6 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+            </svg>
+          </div>
+          <p className="text-sm font-medium text-gray-900 dark:text-zinc-100">No projects yet</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-zinc-400">Create one to start tracking.</p>
         </div>
       ) : (
-        <ul className="divide-y divide-black/[.08] rounded-lg border border-black/[.08] dark:divide-white/[.08] dark:border-white/[.08]">
+        <div className="divide-y divide-gray-100 dark:divide-zinc-800">
           {projects.map((p) => (
-            <li key={p.id}>
-              <Link
-                href={`/organizations/${orgId}/projects/${p.id}`}
-                className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm font-medium text-black dark:text-zinc-50">{p.name}</span>
+            <Link
+              key={p.id}
+              href={`/organizations/${orgId}/projects/${p.id}`}
+              className="flex items-center justify-between px-6 py-4 transition-colors hover:bg-gray-50/50 dark:hover:bg-zinc-800/50"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12A2.25 2.25 0 014.5 9.75h15A2.25 2.25 0 0121.75 12v.75m-8.69-6.44l-2.12-2.12a1.5 1.5 0 00-1.061-.44H4.5A2.25 2.25 0 002.25 6v12a2.25 2.25 0 002.25 2.25h15A2.25 2.25 0 0021.75 18V9a2.25 2.25 0 00-2.25-2.25h-5.379a1.5 1.5 0 01-1.06-.44z" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-900 dark:text-zinc-50">{p.name}</p>
                   {p.description && (
-                    <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                      {p.description}
-                    </span>
+                    <p className="text-xs text-gray-500 dark:text-zinc-400">{p.description}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      p.status === 'ACTIVE'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                        : 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400'
-                    }`}
-                  >
-                    {p.status}
-                  </span>
-                  <span className="text-xs text-zinc-400">
-                    {new Date(p.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              </Link>
-            </li>
+              </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                    p.status === 'ACTIVE'
+                      ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+                      : 'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-zinc-400'
+                  }`}
+                >
+                  {p.status}
+                </span>
+                <span className="text-xs text-gray-400 dark:text-zinc-500">
+                  {new Date(p.createdAt).toLocaleDateString()}
+                </span>
+                <svg className="h-4 w-4 text-gray-400 dark:text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </div>
+            </Link>
           ))}
-        </ul>
+        </div>
       )}
     </div>
   );
@@ -496,44 +627,63 @@ function OrganizationWorkspace() {
   }, [id, router]);
 
   if (state.status === 'loading') {
-    return <p className="text-zinc-600 dark:text-zinc-400">Loading workspace…</p>;
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="flex items-center gap-3">
+          <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+          <p className="text-gray-500 dark:text-zinc-400">Loading workspace…</p>
+        </div>
+      </div>
+    );
   }
 
   if (state.status === 'not-found') {
     return (
-      <main className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-white p-10 text-center shadow-sm dark:bg-zinc-950">
-        <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-          Organization not found
-        </h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/30">
+          <svg className="h-7 w-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+        </div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-zinc-50">Organization not found</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-zinc-400">
           This organization does not exist or you don&apos;t have access to it.
         </p>
         <Link
           href="/dashboard"
-          className="mt-2 text-sm font-medium text-zinc-700 underline underline-offset-4 hover:text-black dark:text-zinc-300 dark:hover:text-zinc-50"
+          className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
           Back to dashboard
         </Link>
-      </main>
+      </div>
     );
   }
 
   if (state.status === 'error') {
     return (
-      <main className="flex w-full max-w-md flex-col gap-4 rounded-2xl bg-white p-10 text-center shadow-sm dark:bg-zinc-950">
-        <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">
-          Something went wrong
-        </h1>
-        <p className="text-zinc-600 dark:text-zinc-400">
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 dark:bg-red-900/30">
+          <svg className="h-7 w-7 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+          </svg>
+        </div>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-zinc-50">Something went wrong</h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-zinc-400">
           We couldn&apos;t load this workspace. Please try again.
         </p>
         <Link
           href="/dashboard"
-          className="mt-2 text-sm font-medium text-zinc-700 underline underline-offset-4 hover:text-black dark:text-zinc-300 dark:hover:text-zinc-50"
+          className="mt-4 inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
         >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
           Back to dashboard
         </Link>
-      </main>
+      </div>
     );
   }
 
@@ -541,54 +691,68 @@ function OrganizationWorkspace() {
   const isOwner = org.role === 'OWNER';
 
   return (
-    <main className="flex w-full max-w-2xl flex-col gap-6 rounded-2xl bg-white p-10 shadow-sm dark:bg-zinc-950">
-      <div className="flex items-center gap-3">
+    <div className="mx-auto w-full max-w-4xl px-6 py-8 lg:px-10">
+      <div className="mb-8">
         <Link
           href="/dashboard"
-          className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
-          aria-label="Back to dashboard"
+          className="mb-4 inline-flex items-center gap-1 text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-zinc-400 dark:hover:text-zinc-200"
         >
-          &larr;
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+          </svg>
+          Dashboard
         </Link>
-        <div className="flex flex-1 items-center justify-between">
-          <div className="flex flex-col gap-0.5">
-            <h1 className="text-2xl font-semibold text-black dark:text-zinc-50">{org.name}</h1>
-            <span className="text-sm text-zinc-500 dark:text-zinc-500">{org.slug}</span>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-100 to-blue-100 text-lg font-bold text-indigo-700 dark:from-indigo-900/40 dark:to-blue-900/40 dark:text-indigo-400">
+              {org.name.charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-zinc-50">{org.name}</h1>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500 dark:text-zinc-400">{org.slug}</span>
+                <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400">
+                  {org.role}
+                </span>
+              </div>
+            </div>
           </div>
-          <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300">
-            {org.role}
-          </span>
         </div>
       </div>
 
-      <hr className="border-black/[.08] dark:border-white/[.145]" />
-
-      <ProjectsSection orgId={id} />
-
-      <hr className="border-black/[.08] dark:border-white/[.145]" />
-      <MembersList orgId={id} isOwner={isOwner} refreshKey={memberRefresh} />
-
-      {isOwner && (
-        <>
-          <hr className="border-black/[.08] dark:border-white/[.145]" />
-          <InviteForm
-            orgId={id}
-            onInvited={() => {
-              setInviteRefresh((n) => n + 1);
-              setMemberRefresh((n) => n + 1);
-            }}
-          />
-          <PendingInvitations orgId={id} refreshKey={inviteRefresh} />
-        </>
-      )}
-    </main>
+      <div className="flex flex-col gap-6">
+        <ProjectsSection orgId={id} />
+        <MembersList orgId={id} isOwner={isOwner} refreshKey={memberRefresh} />
+        {isOwner && (
+          <>
+            <InviteForm
+              orgId={id}
+              onInvited={() => {
+                setInviteRefresh((n) => n + 1);
+                setMemberRefresh((n) => n + 1);
+              }}
+            />
+            <PendingInvitations orgId={id} refreshKey={inviteRefresh} />
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
 export default function OrganizationPage() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <Suspense fallback={<p className="text-zinc-600 dark:text-zinc-400">Loading workspace…</p>}>
+    <div className="flex min-h-screen flex-1 flex-col bg-gray-50 font-sans dark:bg-zinc-950">
+      <Suspense
+        fallback={
+          <div className="flex h-full items-center justify-center">
+            <div className="flex items-center gap-3">
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-blue-600" />
+              <p className="text-gray-500 dark:text-zinc-400">Loading workspace…</p>
+            </div>
+          </div>
+        }
+      >
         <OrganizationWorkspace />
       </Suspense>
     </div>

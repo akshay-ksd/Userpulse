@@ -345,16 +345,16 @@ export class FunnelsService {
 
     // Step 0: users who performed the first event in the date range
     cteParts.push(`step_0 AS (
-      SELECT DISTINCT COALESCE("user_id", "anonymous_id") AS uid,
-             MIN("event_timestamp") AS ts
+      SELECT DISTINCT COALESCE("userId", "anonymousId") AS uid,
+             MIN("eventTimestamp") AS ts
       FROM events
-      WHERE "project_id" = $${paramIdx++}
-        AND "validation_status" = 'VALID'
-        AND "event_name" = $${paramIdx++}
-        AND "event_timestamp" >= $${paramIdx++}
-        AND "event_timestamp" <= $${paramIdx++}
-        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
-      GROUP BY COALESCE("user_id", "anonymous_id")
+      WHERE "projectId" = $${paramIdx++}
+        AND "validationStatus" = 'VALID'
+        AND "eventName" = $${paramIdx++}
+        AND "eventTimestamp" >= $${paramIdx++}
+        AND "eventTimestamp" <= $${paramIdx++}
+        AND ("userId" IS NOT NULL OR "anonymousId" IS NOT NULL)
+      GROUP BY COALESCE("userId", "anonymousId")
     )`);
     params.push(projectId, steps[0].eventName, startDateTime, endDateTime);
 
@@ -362,15 +362,15 @@ export class FunnelsService {
     for (let i = 1; i < steps.length; i++) {
       cteParts.push(`step_${i} AS (
         SELECT DISTINCT s.uid,
-               MIN(e."event_timestamp") AS ts
+               MIN(e."eventTimestamp") AS ts
         FROM step_${i - 1} s
-        INNER JOIN events e ON COALESCE(e."user_id", e."anonymous_id") = s.uid
-        WHERE e."project_id" = $${paramIdx++}
-          AND e."validation_status" = 'VALID'
-          AND e."event_name" = $${paramIdx++}
-          AND e."event_timestamp" > s.ts
-          AND e."event_timestamp" <= $${paramIdx++}
-          AND (e."user_id" IS NOT NULL OR e."anonymous_id" IS NOT NULL)
+        INNER JOIN events e ON COALESCE(e."userId", e."anonymousId") = s.uid
+        WHERE e."projectId" = $${paramIdx++}
+          AND e."validationStatus" = 'VALID'
+          AND e."eventName" = $${paramIdx++}
+          AND e."eventTimestamp" > s.ts
+          AND e."eventTimestamp" <= $${paramIdx++}
+          AND (e."userId" IS NOT NULL OR e."anonymousId" IS NOT NULL)
         GROUP BY s.uid
       )`);
       params.push(projectId, steps[i].eventName, endDateTime);

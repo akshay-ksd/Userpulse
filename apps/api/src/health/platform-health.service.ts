@@ -94,9 +94,9 @@ export class PlatformHealthService {
   private async getEventProcessingMetrics() {
     const [counts, oldestPending, recentProcessed] = await Promise.all([
       this.prisma.$queryRaw<
-        Array<{ processing_status: string; count: bigint }>
+        Array<{ processingStatus: string; count: bigint }>
       >(
-        Prisma.sql`SELECT processing_status, COUNT(*)::bigint as count FROM events WHERE validation_status = 'VALID' OR processing_status = 'REJECTED' GROUP BY processing_status`,
+        Prisma.sql`SELECT "processingStatus", COUNT(*)::bigint as count FROM events WHERE "validationStatus" = 'VALID' OR "processingStatus" = 'REJECTED' GROUP BY "processingStatus"`,
       ),
       this.prisma.event.findFirst({
         where: { processingStatus: 'PENDING', validationStatus: 'VALID' },
@@ -113,7 +113,7 @@ export class PlatformHealthService {
 
     const statusCounts: Record<string, number> = {};
     for (const row of counts) {
-      statusCounts[row.processing_status] = Number(row.count);
+      statusCounts[row.processingStatus] = Number(row.count);
     }
 
     return {

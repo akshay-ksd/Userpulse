@@ -116,13 +116,13 @@ export class EvidenceGathererService {
     periodEnd: Date,
   ): Promise<number> {
     const rows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(DISTINCT COALESCE("user_id", "anonymous_id"))::bigint AS count
+      SELECT COUNT(DISTINCT COALESCE("userId", "anonymousId"))::bigint AS count
       FROM events
-      WHERE "project_id" = ${projectId}
-        AND "validation_status" = 'VALID'
-        AND "event_timestamp" >= ${periodStart}
-        AND "event_timestamp" <= ${periodEnd}
-        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+      WHERE "projectId" = ${projectId}
+        AND "validationStatus" = 'VALID'
+        AND "eventTimestamp" >= ${periodStart}
+        AND "eventTimestamp" <= ${periodEnd}
+        AND ("userId" IS NOT NULL OR "anonymousId" IS NOT NULL)
     `;
     return Number(rows[0]?.count ?? 0);
   }
@@ -155,13 +155,13 @@ export class EvidenceGathererService {
     if (features.length === 0) return [];
 
     const totalRows = await this.prisma.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(DISTINCT COALESCE("user_id", "anonymous_id"))::bigint AS count
+      SELECT COUNT(DISTINCT COALESCE("userId", "anonymousId"))::bigint AS count
       FROM events
-      WHERE "project_id" = ${projectId}
-        AND "validation_status" = 'VALID'
-        AND "event_timestamp" >= ${periodStart}
-        AND "event_timestamp" <= ${periodEnd}
-        AND ("user_id" IS NOT NULL OR "anonymous_id" IS NOT NULL)
+      WHERE "projectId" = ${projectId}
+        AND "validationStatus" = 'VALID'
+        AND "eventTimestamp" >= ${periodStart}
+        AND "eventTimestamp" <= ${periodEnd}
+        AND ("userId" IS NOT NULL OR "anonymousId" IS NOT NULL)
     `;
     const totalUsers = Number(totalRows[0]?.count ?? 0);
     if (totalUsers === 0) {
@@ -175,24 +175,24 @@ export class EvidenceGathererService {
     }
 
     const featureUserRows = await this.prisma.$queryRaw<
-      Array<{ feature_id: string; count: bigint }>
+      Array<{ featureId: string; count: bigint }>
     >`
-      SELECT fem."feature_id" AS feature_id,
-             COUNT(DISTINCT COALESCE(e."user_id", e."anonymous_id"))::bigint AS count
+      SELECT fem."featureId" AS "featureId",
+             COUNT(DISTINCT COALESCE(e."userId", e."anonymousId"))::bigint AS count
       FROM events e
       INNER JOIN feature_event_mappings fem
-        ON e."project_id" = fem."project_id" AND e."event_name" = fem."event_name"
-      WHERE e."project_id" = ${projectId}
-        AND e."validation_status" = 'VALID'
-        AND e."event_timestamp" >= ${periodStart}
-        AND e."event_timestamp" <= ${periodEnd}
-        AND (e."user_id" IS NOT NULL OR e."anonymous_id" IS NOT NULL)
-      GROUP BY fem."feature_id"
+        ON e."projectId" = fem."projectId" AND e."eventName" = fem."eventName"
+      WHERE e."projectId" = ${projectId}
+        AND e."validationStatus" = 'VALID'
+        AND e."eventTimestamp" >= ${periodStart}
+        AND e."eventTimestamp" <= ${periodEnd}
+        AND (e."userId" IS NOT NULL OR e."anonymousId" IS NOT NULL)
+      GROUP BY fem."featureId"
     `;
 
     const featureUserMap = new Map<string, number>();
     for (const row of featureUserRows) {
-      featureUserMap.set(row.feature_id, Number(row.count));
+      featureUserMap.set(row.featureId, Number(row.count));
     }
 
     return features.map((f) => {
@@ -220,34 +220,34 @@ export class EvidenceGathererService {
     const baselineStart = new Date(baselineEnd.getTime() - periodMs + 1);
 
     const [currentRows, baselineRows] = await Promise.all([
-      this.prisma.$queryRaw<Array<{ event_name: string; count: bigint }>>`
-        SELECT "event_name", COUNT(*)::bigint AS count
+      this.prisma.$queryRaw<Array<{ eventName: string; count: bigint }>>`
+        SELECT "eventName", COUNT(*)::bigint AS count
         FROM events
-        WHERE "project_id" = ${projectId}
-          AND "validation_status" = 'VALID'
-          AND "event_timestamp" >= ${periodStart}
-          AND "event_timestamp" <= ${periodEnd}
-        GROUP BY "event_name"
+        WHERE "projectId" = ${projectId}
+          AND "validationStatus" = 'VALID'
+          AND "eventTimestamp" >= ${periodStart}
+          AND "eventTimestamp" <= ${periodEnd}
+        GROUP BY "eventName"
       `,
-      this.prisma.$queryRaw<Array<{ event_name: string; count: bigint }>>`
-        SELECT "event_name", COUNT(*)::bigint AS count
+      this.prisma.$queryRaw<Array<{ eventName: string; count: bigint }>>`
+        SELECT "eventName", COUNT(*)::bigint AS count
         FROM events
-        WHERE "project_id" = ${projectId}
-          AND "validation_status" = 'VALID'
-          AND "event_timestamp" >= ${baselineStart}
-          AND "event_timestamp" <= ${baselineEnd}
-        GROUP BY "event_name"
+        WHERE "projectId" = ${projectId}
+          AND "validationStatus" = 'VALID'
+          AND "eventTimestamp" >= ${baselineStart}
+          AND "eventTimestamp" <= ${baselineEnd}
+        GROUP BY "eventName"
       `,
     ]);
 
     const currentMap = new Map<string, number>();
     for (const row of currentRows) {
-      currentMap.set(row.event_name, Number(row.count));
+      currentMap.set(row.eventName, Number(row.count));
     }
 
     const baselineMap = new Map<string, number>();
     for (const row of baselineRows) {
-      baselineMap.set(row.event_name, Number(row.count));
+      baselineMap.set(row.eventName, Number(row.count));
     }
 
     const allNames = new Set([...currentMap.keys(), ...baselineMap.keys()]);
@@ -292,23 +292,23 @@ export class EvidenceGathererService {
     if (features.length === 0) return [];
 
     const featureEventRows = await this.prisma.$queryRaw<
-      Array<{ feature_id: string; count: bigint }>
+      Array<{ featureId: string; count: bigint }>
     >`
-      SELECT fem."feature_id" AS feature_id,
+      SELECT fem."featureId" AS "featureId",
              COUNT(*)::bigint AS count
       FROM events e
       INNER JOIN feature_event_mappings fem
-        ON e."project_id" = fem."project_id" AND e."event_name" = fem."event_name"
-      WHERE e."project_id" = ${projectId}
-        AND e."validation_status" = 'VALID'
-        AND e."event_timestamp" >= ${periodStart}
-        AND e."event_timestamp" <= ${periodEnd}
-      GROUP BY fem."feature_id"
+        ON e."projectId" = fem."projectId" AND e."eventName" = fem."eventName"
+      WHERE e."projectId" = ${projectId}
+        AND e."validationStatus" = 'VALID'
+        AND e."eventTimestamp" >= ${periodStart}
+        AND e."eventTimestamp" <= ${periodEnd}
+      GROUP BY fem."featureId"
     `;
 
     const featureEventMap = new Map<string, number>();
     for (const row of featureEventRows) {
-      featureEventMap.set(row.feature_id, Number(row.count));
+      featureEventMap.set(row.featureId, Number(row.count));
     }
 
     const featuresWithData = features.filter(
@@ -352,20 +352,20 @@ export class EvidenceGathererService {
     periodEnd: Date,
   ): Promise<TopEventEvidence[]> {
     const rows = await this.prisma.$queryRaw<
-      Array<{ event_name: string; count: bigint }>
+      Array<{ eventName: string; count: bigint }>
     >`
-      SELECT "event_name", COUNT(*)::bigint AS count
+      SELECT "eventName", COUNT(*)::bigint AS count
       FROM events
-      WHERE "project_id" = ${projectId}
-        AND "validation_status" = 'VALID'
-        AND "event_timestamp" >= ${periodStart}
-        AND "event_timestamp" <= ${periodEnd}
-      GROUP BY "event_name"
+      WHERE "projectId" = ${projectId}
+        AND "validationStatus" = 'VALID'
+        AND "eventTimestamp" >= ${periodStart}
+        AND "eventTimestamp" <= ${periodEnd}
+      GROUP BY "eventName"
       ORDER BY count DESC
       LIMIT 20
     `;
     return rows.map((r) => ({
-      eventName: r.event_name,
+      eventName: r.eventName,
       count: Number(r.count),
     }));
   }

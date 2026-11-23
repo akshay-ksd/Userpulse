@@ -1,5 +1,5 @@
 -- DropIndex
-DROP INDEX IF EXISTS "events_event_id_idx";
+DROP INDEX IF EXISTS "events_eventId_idx";
 
 -- CreateIndex (unique constraint replaces the plain index)
-CREATE UNIQUE INDEX "events_project_id_event_id_key" ON "events"("project_id", "event_id");
+CREATE UNIQUE INDEX "events_projectId_eventId_key" ON "events"("projectId", "eventId");

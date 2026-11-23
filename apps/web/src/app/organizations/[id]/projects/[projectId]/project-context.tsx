@@ -14,14 +14,8 @@ export type ProjectInfo = {
   createdAt: string;
 };
 
-export type FeatureInfo = {
-  id: string;
-  name: string;
-  key: string;
-  description: string | null;
-  status: string;
-  eventMappings: { id: string; eventName: string }[];
-};
+import type { FeatureInfo } from './_components';
+export type { FeatureInfo };
 
 type PeriodPreset = '7d' | '30d' | '90d';
 

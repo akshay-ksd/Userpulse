@@ -1,19 +1,18 @@
-FROM node:22-alpine AS base
+FROM node:22-alpine AS builder
 RUN corepack enable && corepack prepare pnpm@11.9.0 --activate
 WORKDIR /app
 
-# --- Dependencies ---
-FROM base AS deps
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 COPY apps/web/package.json apps/web/package.json
 COPY packages/database/package.json packages/database/package.json
 RUN pnpm install --frozen-lockfile
 
-# --- Build ---
-FROM deps AS builder
-COPY apps/web apps/web
 COPY packages/database packages/database
 RUN pnpm --filter @userpulse/database run generate
+
+COPY apps/web apps/web
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm --filter web run build
 
 # --- Production ---

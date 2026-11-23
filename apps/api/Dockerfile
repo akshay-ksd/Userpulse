@@ -11,6 +11,7 @@ RUN pnpm install --frozen-lockfile
 
 # --- Build database package ---
 FROM deps AS db-build
+COPY tsconfig.base.json ./
 COPY packages/database packages/database
 RUN pnpm --filter @userpulse/database run generate
 RUN pnpm --filter @userpulse/database run build

@@ -8,6 +8,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
 const EXTRA_ORIGINS = process.env.EXTRA_TRUSTED_ORIGINS?.split(',').filter(Boolean) ?? [];
 
 export function configureApp(app: INestApplication): void {
+  app.setGlobalPrefix('api', { exclude: [{ path: 'health', method: RequestMethod.GET }] });
   app.useGlobalPipes(new StandardSchemaValidationPipe());
   app.enableCors({
     origin: (
@@ -20,6 +21,6 @@ export function configureApp(app: INestApplication): void {
   });
   app.enableCsrfProtection({
     trustedOrigins: [WEB_ORIGIN, ...EXTRA_ORIGINS],
-    exclude: [{ path: 'v1/events', method: RequestMethod.POST }],
+    exclude: [{ path: 'api/v1/events', method: RequestMethod.POST }],
   });
 }

@@ -21,6 +21,9 @@ export function configureApp(app: INestApplication): void {
   });
   app.enableCsrfProtection({
     trustedOrigins: [WEB_ORIGIN, ...EXTRA_ORIGINS],
-    exclude: [{ path: 'api/v1/events', method: RequestMethod.POST }],
+    exclude: [
+      { path: 'api/v1/events', method: RequestMethod.POST },
+      { path: 'v1/events', method: RequestMethod.POST },
+    ],
   });
 }

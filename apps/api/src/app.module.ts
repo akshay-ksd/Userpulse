@@ -28,7 +28,7 @@ const WEB_ORIGIN = process.env.WEB_ORIGIN ?? 'http://localhost:3000';
       session: {
         absoluteTtl: '7d',
         idleTtl: '1d',
-        // The web app runs on another origin than the API in development.
+        cookie: { secure: process.env.NODE_ENV === 'production' && WEB_ORIGIN.startsWith('https') },
         trustedOrigins: [WEB_ORIGIN],
       },
     }),

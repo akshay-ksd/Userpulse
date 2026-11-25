@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@userpulse/database';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EventValidationService } from './event-validation.service.js';
+import type { NormalizedEvent } from './event-validation.service.js';
 import type { EventDto } from './submit-events.dto.js';
 
 export interface BatchResult {
@@ -30,6 +31,7 @@ export class IngestionService {
     const validData: Prisma.EventCreateManyInput[] = [];
     const rejectedData: Prisma.EventCreateManyInput[] = [];
     const errors: Array<{ index: number; error: string }> = [];
+    const validNormalized: NormalizedEvent[] = [];
 
     for (let i = 0; i < batch.length; i++) {
       const result = this.validationService.validateAndNormalize(batch[i]);
@@ -40,6 +42,7 @@ export class IngestionService {
         projectId,
         eventId: normalized.eventId,
         eventName: normalized.eventName,
+        description: normalized.description ?? null,
         anonymousId: normalized.anonymousId ?? null,
         userId: normalized.userId ?? null,
         properties:
@@ -54,6 +57,7 @@ export class IngestionService {
           validationStatus: 'VALID',
           processingStatus: 'PENDING',
         });
+        validNormalized.push(normalized);
       } else {
         rejectedData.push({
           ...base,
@@ -79,6 +83,10 @@ export class IngestionService {
         skipDuplicates: true,
       });
     }
+
+    this.autoCreateFeatures(projectId, validNormalized).catch((err) => {
+      this.logger.warn(`Auto-feature creation failed for project ${projectId}: ${err}`);
+    });
 
     const duplicates = validData.length - insertedCount;
 
@@ -107,5 +115,52 @@ export class IngestionService {
       duplicates,
       ...(errors.length > 0 ? { errors } : {}),
     };
+  }
+
+  private async autoCreateFeatures(
+    projectId: string,
+    events: NormalizedEvent[],
+  ): Promise<void> {
+    const featureEvents = new Map<string, Set<string>>();
+    for (const event of events) {
+      if (!event.featureName) continue;
+      let eventNames = featureEvents.get(event.featureName);
+      if (!eventNames) {
+        eventNames = new Set();
+        featureEvents.set(event.featureName, eventNames);
+      }
+      eventNames.add(event.eventName);
+    }
+
+    if (featureEvents.size === 0) return;
+
+    for (const [featureName, eventNames] of featureEvents) {
+      let feature = await this.prisma.feature.findFirst({
+        where: { projectId, name: featureName },
+      });
+
+      if (!feature) {
+        feature = await this.prisma.feature.create({
+          data: { projectId, name: featureName },
+        });
+        this.logger.log(
+          `Auto-created feature "${featureName}" for project ${projectId}`,
+        );
+      }
+
+      for (const eventName of eventNames) {
+        const existing = await this.prisma.featureEventMapping.findUnique({
+          where: { projectId_eventName: { projectId, eventName } },
+        });
+        if (!existing) {
+          await this.prisma.featureEventMapping.create({
+            data: { featureId: feature.id, projectId, eventName },
+          });
+          this.logger.log(
+            `Auto-mapped event "${eventName}" to feature "${featureName}" for project ${projectId}`,
+          );
+        }
+      }
+    }
   }
 }

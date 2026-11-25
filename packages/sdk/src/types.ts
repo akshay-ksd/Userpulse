@@ -16,6 +16,12 @@ export interface ResolvedConfig {
   trackingEnabled: boolean;
 }
 
+export interface TrackOptions {
+  description?: string;
+  featureName?: string;
+  properties?: Record<string, unknown>;
+}
+
 export interface UserpulseEvent {
   eventId: string;
   eventName: string;
@@ -24,6 +30,8 @@ export interface UserpulseEvent {
   userId?: string;
   sessionId?: string;
   properties?: Record<string, unknown>;
+  description?: string;
+  featureName?: string;
   pageName?: string;
   pagePath?: string;
   sdkVersion: string;
@@ -36,7 +44,7 @@ export interface UserpulseInstance {
   readonly sdkVersion: string;
   readonly isInitialized: boolean;
   readonly trackingEnabled: boolean;
-  track(eventName: string, properties?: Record<string, unknown>): void;
+  track(eventName: string, propertiesOrOptions?: Record<string, unknown> | TrackOptions): void;
   page(name?: string, properties?: Record<string, unknown>): void;
   identify(userId: string, traits?: Record<string, unknown>): void;
   reset(): void;

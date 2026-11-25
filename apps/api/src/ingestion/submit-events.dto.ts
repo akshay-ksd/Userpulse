@@ -7,6 +7,8 @@ const eventSchema = z.object({
   anonymousId: z.string().max(200).optional(),
   userId: z.string().max(200).optional(),
   properties: z.record(z.string(), z.unknown()).optional(),
+  description: z.string().max(1000).optional(),
+  featureName: z.string().max(200).optional(),
   sdkVersion: z.string().max(50).optional(),
 });
 

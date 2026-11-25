@@ -29,6 +29,7 @@ export interface UnmappedEventInfo {
   eventName: string;
   eventCount: number;
   lastSeenAt: Date;
+  description: string | null;
 }
 
 @Injectable()
@@ -293,12 +294,34 @@ export class FeaturesService {
 
     const mappedSet = new Set(mappedNames.map((m) => m.eventName));
 
+    const unmappedNames = eventGroups
+      .filter((g) => !mappedSet.has(g.eventName))
+      .map((g) => g.eventName);
+
+    const descriptions = new Map<string, string>();
+    if (unmappedNames.length > 0) {
+      const latestEvents = await this.prisma.event.findMany({
+        where: {
+          projectId,
+          eventName: { in: unmappedNames },
+          description: { not: null },
+        },
+        orderBy: { ingestedAt: 'desc' },
+        distinct: ['eventName'],
+        select: { eventName: true, description: true },
+      });
+      for (const e of latestEvents) {
+        if (e.description) descriptions.set(e.eventName, e.description);
+      }
+    }
+
     return eventGroups
       .filter((g) => !mappedSet.has(g.eventName))
       .map((g) => ({
         eventName: g.eventName,
         eventCount: g._count.eventName,
         lastSeenAt: g._max.ingestedAt!,
+        description: descriptions.get(g.eventName) ?? null,
       }))
       .sort((a, b) => b.lastSeenAt.getTime() - a.lastSeenAt.getTime());
   }

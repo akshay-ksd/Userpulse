@@ -1,4 +1,4 @@
-import type { UserpulseConfig, UserpulseInstance } from './types.js';
+import type { UserpulseConfig, UserpulseInstance, TrackOptions } from './types.js';
 import { UserpulseClient } from './client.js';
 
 export type {
@@ -6,6 +6,7 @@ export type {
   UserpulseEvent,
   UserpulseInstance,
   ResolvedConfig,
+  TrackOptions,
 } from './types.js';
 export { SDK_VERSION } from './version.js';
 
@@ -27,12 +28,12 @@ export function getClient(): UserpulseInstance {
   return currentClient;
 }
 
-export function track(eventName: string, properties?: Record<string, unknown>): void {
+export function track(eventName: string, propertiesOrOptions?: Record<string, unknown> | TrackOptions): void {
   if (!currentClient) {
     console.warn('UserpulseSDK: Not initialized. Call init() before track().');
     return;
   }
-  currentClient.track(eventName, properties);
+  currentClient.track(eventName, propertiesOrOptions);
 }
 
 export function page(name?: string, properties?: Record<string, unknown>): void {

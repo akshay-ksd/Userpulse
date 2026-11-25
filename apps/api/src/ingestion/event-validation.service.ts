@@ -8,6 +8,8 @@ export interface NormalizedEvent {
   anonymousId?: string;
   userId?: string;
   properties?: Record<string, unknown>;
+  description?: string;
+  featureName?: string;
   sdkVersion?: string;
 }
 
@@ -113,6 +115,9 @@ export class EventValidationService {
     const userId = event.userId?.trim() || undefined;
     const sdkVersion = event.sdkVersion?.trim() || undefined;
 
+    const description = event.description?.trim() || undefined;
+    const featureName = event.featureName?.trim() || undefined;
+
     return {
       normalized: {
         eventId: event.eventId,
@@ -121,6 +126,8 @@ export class EventValidationService {
         anonymousId,
         userId,
         properties,
+        description,
+        featureName,
         sdkVersion,
       },
       status: 'VALID',

@@ -1848,6 +1848,7 @@ type UnmappedEvent = {
   eventName: string;
   eventCount: number;
   lastSeenAt: string;
+  description: string | null;
 };
 
 export function UnmappedEventsSection({
@@ -2002,6 +2003,9 @@ export function UnmappedEventsSection({
                     <code className="text-sm font-semibold font-mono text-gray-900 dark:text-zinc-50">
                       {evt.eventName}
                     </code>
+                    {evt.description && (
+                      <p className="text-xs text-gray-500 dark:text-zinc-400">{evt.description}</p>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-gray-400 dark:text-zinc-500">
                       <span className="inline-flex items-center gap-1">
                         <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75z" /></svg>

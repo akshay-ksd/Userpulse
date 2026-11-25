@@ -3,6 +3,7 @@ import type {
   ResolvedConfig,
   UserpulseEvent,
   UserpulseInstance,
+  TrackOptions,
 } from './types.js';
 import { SDK_VERSION } from './version.js';
 
@@ -97,7 +98,7 @@ export class UserpulseClient implements UserpulseInstance {
     this.trackingEnabled = !!enabled;
   }
 
-  track(eventName: string, properties?: Record<string, unknown>): void {
+  track(eventName: string, propertiesOrOptions?: Record<string, unknown> | TrackOptions): void {
     try {
       if (!this.trackingEnabled) {
         if (this.config.debug) {
@@ -120,6 +121,21 @@ export class UserpulseClient implements UserpulseInstance {
         return;
       }
 
+      let properties: Record<string, unknown> | undefined;
+      let description: string | undefined;
+      let featureName: string | undefined;
+
+      if (propertiesOrOptions !== undefined) {
+        if ('description' in propertiesOrOptions || 'featureName' in propertiesOrOptions) {
+          const opts = propertiesOrOptions as TrackOptions;
+          properties = opts.properties;
+          description = opts.description;
+          featureName = opts.featureName;
+        } else {
+          properties = propertiesOrOptions as Record<string, unknown>;
+        }
+      }
+
       const event: UserpulseEvent = {
         eventId: generateUUID(),
         eventName,
@@ -128,6 +144,8 @@ export class UserpulseClient implements UserpulseInstance {
         ...(this.userId !== undefined && { userId: this.userId }),
         sdkVersion: this.sdkVersion,
         ...(properties !== undefined && { properties }),
+        ...(description !== undefined && { description }),
+        ...(featureName !== undefined && { featureName }),
       };
 
       this.queue.push(event);
